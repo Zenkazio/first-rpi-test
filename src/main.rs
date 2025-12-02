@@ -15,10 +15,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Blink the LED by setting the pin's logic level high for 500 ms.
     loop {
-    pin.set_high();
-    thread::sleep(Duration::from_millis(500));
-    pin.set_low();
-    thread::sleep(Duration::from_millis(500));
+        pin.set_high();
+        thread::sleep(Duration::from_millis(500));
+        pin.set_low();
+        thread::sleep(Duration::from_millis(500));
     }
     // Ok(())
 }
@@ -27,6 +27,6 @@ mod tests {
 
     #[test]
     fn it_works() {
-        assert_eq!(true,true);
+        assert_eq!(true, true);
     }
 }

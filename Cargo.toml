@@ -1,5 +1,5 @@
 [package]
-name = "first-pi-test"
+name = "first-rpi-test"
 version = "0.1.0"
 edition = "2024"
 
