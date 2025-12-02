@@ -65,10 +65,14 @@
           pkgs = import nixpkgs { system = "x86_64-linux"; };
         in
         pkgs.mkShell {
-          buildInputs = [
-            pkgs.rustc
-            pkgs.cargo
+          buildInputs = with pkgs; [
+            rustc
+            cargo
+            rustfmt
+            clippy
+            rust-analyzer
           ];
+          env.RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
         };
       apps.x86_64-linux.deploy =
         let
@@ -108,6 +112,7 @@
             ''
           );
         };
+      apps.x86_64-linux.default = self.apps.x86_64-linux.deploy;
 
     };
 }
