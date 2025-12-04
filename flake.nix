@@ -3,6 +3,10 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -85,30 +89,38 @@
               set -euo pipefail
 
               echo "===> Building aarch64 binary"
-              nix build .#aarch64
+              nix build .#all
 
               TARGET_HOST="zenkazio@192.168.178.36"
               TARGET_PATH="/home/zenkazio/first-rpi-test"  # beliebiger Ort, wir nutzen /home
               REMOTE_BIN="/usr/local/bin/first-rpi-test"     # finaler Ort mit root-Rechten
 
               echo "===> Sync to target via rsync"
-              rsync -av --delete result/bin/first-rpi-test $TARGET_HOST:$TARGET_PATH
+              rsync -av --delete result/aarch64/bin/first-rpi-test $TARGET_HOST:$TARGET_PATH
 
               echo "===> Restarting program on target (sudo required)"
-              ssh "$TARGET_HOST" "
-                set -e
-                echo 'Stopping old program (ignore errors if not running)'
-                sudo killall first-rpi-test 2>/dev/null || true
-
-                echo 'Installing new binary'
-                sudo mv $TARGET_PATH $REMOTE_BIN
-                sudo chmod +x $REMOTE_BIN
-
-                echo 'Starting new program'
-                sudo $REMOTE_BIN &
+              ssh "$TARGET_HOST" "sudo systemctl restart start-rpi-program.service
               "
 
               echo "===> Deployment complete."
+            ''
+          );
+        };
+      apps.x86_64-linux.stop =
+        let
+          pkgs = import nixpkgs { system = "x86_64-linux"; };
+        in
+        {
+          type = "app";
+          program = builtins.toString (
+            pkgs.writeShellScript "stop-remote" ''
+              set -euo pipefail
+              TARGET_HOST="zenkazio@192.168.178.36"
+
+              echo "===> Stopping remote program"
+              ssh "$TARGET_HOST" "sudo systemctl stop start-rpi-program.service"
+
+              echo "===> Program stopped"
             ''
           );
         };
