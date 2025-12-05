@@ -7,7 +7,14 @@ name = "first-rpi-test"
 version = "0.1.0"
 dependencies = [
  "rppal",
+ "simple-signal",
 ]
+
+[[package]]
+name = "lazy_static"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "libc"
@@ -21,5 +28,15 @@ version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1ce3b019009cff02cb6b0e96e7cc2e5c5b90187dc1a490f8ef1521d0596b026"
 dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "simple-signal"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53f7da44adcc42667d57483bd93f81295f27d66897804b757573b61b6f13288b"
+dependencies = [
+ "lazy_static",
  "libc",
 ]

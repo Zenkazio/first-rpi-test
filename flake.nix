@@ -3,14 +3,14 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      self,
+      nixpkgs,
+      ...
+    }:
     {
 
       packages.x86_64-linux.native =
@@ -96,7 +96,7 @@
               REMOTE_BIN="/usr/local/bin/first-rpi-test"     # finaler Ort mit root-Rechten
 
               echo "===> Sync to target via rsync"
-              rsync -av --delete result/aarch64/bin/first-rpi-test $TARGET_HOST:$TARGET_PATH
+              rsync -avc --delete result/aarch64/bin/first-rpi-test $TARGET_HOST:$TARGET_PATH
 
               echo "===> Restarting program on target (sudo required)"
               ssh "$TARGET_HOST" "sudo systemctl restart start-rpi-program.service
