@@ -17,10 +17,11 @@ impl RGBLed {
             r_pin: r,
             g_pin: g,
             b_pin: b,
-            freq: 1000.0,
+            freq: 2000.0,
         })
     }
     pub fn set_rgb(&mut self, r: u8, g: u8, b: u8) -> Result<(), Error> {
+        self.clear()?;
         self.r_pin
             .set_pwm_frequency(self.freq, r as f64 / 255 as f64)?;
         self.g_pin

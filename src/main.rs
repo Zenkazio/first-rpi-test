@@ -9,21 +9,21 @@ use simple_signal::{self, Signal};
 
 use rppal::gpio::Gpio;
 
+use crate::keypad::Keypad;
+use crate::rgbled::RGBLed;
+mod keypad;
+mod rgbled;
 // Gpio uses BCM pin numbering. BCM GPIO 23 is tied to physical pin 16.
 const GPIO_LED: u8 = 23;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Retrieve the GPIO pin and configure it as an output.
+    let mut rgb_led = RGBLed::new(17, 27, 22)?;
     let mut pin = Gpio::new()?.get(GPIO_LED)?.into_output();
-    let mut r_pin = Gpio::new()?.get(17)?.into_output();
-    let mut g_pin = Gpio::new()?.get(27)?.into_output();
-    let mut b_pin = Gpio::new()?.get(22)?.into_output();
-    // r_pin.set_pwm_frequency(1000.0, 0 as f64 / 255 as f64)?;
-    // g_pin.set_pwm_frequency(1000.0, 255 as f64 / 255 as f64)?;
-    // b_pin.set_pwm_frequency(1000.0, 0 as f64 / 255 as f64)?;
-    r_pin.set_low();
-    g_pin.set_high();
-    b_pin.set_low();
+    let mut keypad = Keypad::new(10, 9, 11, 0, 25, 8, 7, 1)?;
+
+    // rgb_led.set_rgb(226, 34, 120)?;
+    rgb_led.green()?;
 
     let running = Arc::new(AtomicBool::new(true));
 
@@ -34,11 +34,58 @@ fn main() -> Result<(), Box<dyn Error>> {
             running.store(false, Ordering::SeqCst);
         }
     });
-
+    let mut r;
+    let mut g;
+    let mut b;
     // Blink the LED until running is set to false.
     while running.load(Ordering::SeqCst) {
         pin.toggle();
-        thread::sleep(Duration::from_millis(500));
+        keypad.cycle()?;
+        r = 0;
+        g = 0;
+        b = 0;
+        if keypad.state[0][0] {
+            r += 64;
+        }
+        if keypad.state[0][1] {
+            r += 64;
+        }
+        if keypad.state[0][2] {
+            r += 64;
+        }
+        if keypad.state[0][3] {
+            r += 63;
+        }
+
+        if keypad.state[1][0] {
+            g += 64;
+        }
+        if keypad.state[1][1] {
+            g += 64;
+        }
+        if keypad.state[1][2] {
+            g += 64;
+        }
+        if keypad.state[1][3] {
+            g += 63;
+        }
+
+        if keypad.state[2][0] {
+            b += 64;
+        }
+        if keypad.state[2][1] {
+            b += 64;
+        }
+        if keypad.state[2][2] {
+            b += 64;
+        }
+        if keypad.state[3][3] {
+            b += 63;
+        }
+
+        rgb_led.set_rgb(r, g, b)?;
+        thread::sleep(Duration::from_millis(10));
+        // keypad.display_state();
     }
 
     // After we're done blinking, turn the LED off.
