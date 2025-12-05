@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use rppal::gpio::{Error, Gpio, OutputPin};
 
 pub struct RGBLed {
@@ -32,6 +33,24 @@ impl RGBLed {
         self.r_pin.clear_pwm()?;
         self.g_pin.clear_pwm()?;
         self.b_pin.clear_pwm()?;
+        self.r_pin.set_low();
+        self.g_pin.set_low();
+        self.b_pin.set_low();
+        Ok(())
+    }
+    pub fn red(&mut self) -> Result<(), Error> {
+        self.clear()?;
+        self.r_pin.set_high();
+        Ok(())
+    }
+    pub fn green(&mut self) -> Result<(), Error> {
+        self.clear()?;
+        self.g_pin.set_high();
+        Ok(())
+    }
+    pub fn blue(&mut self) -> Result<(), Error> {
+        self.clear()?;
+        self.b_pin.set_high();
         Ok(())
     }
 }
