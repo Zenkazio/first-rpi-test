@@ -11,6 +11,7 @@ use rppal::gpio::Gpio;
 
 use crate::keypad::Keypad;
 use crate::rgbled::RGBLed;
+mod distance;
 mod keypad;
 mod rgbled;
 // Gpio uses BCM pin numbering. BCM GPIO 23 is tied to physical pin 16.
