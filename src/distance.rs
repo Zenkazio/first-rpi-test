@@ -1,57 +1,89 @@
 #![allow(dead_code)]
-use std::{
-    sync::{Arc, Mutex},
-    time::{Duration, Instant},
-};
+use rppal::gpio::{Error, Gpio};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 
-use rppal::gpio::{Error, Gpio, InputPin, OutputPin, Trigger};
-
-struct Distance {
-    trigger: OutputPin,
-    echo: InputPin,
+const RATE: Duration = Duration::from_micros(200);
+pub trait Hcsr04Observer: Send + Sync {
+    fn update(&self, value: f64);
+}
+pub struct Hcsr04 {
     distance: Arc<Mutex<f64>>,
-    start_time: Arc<Mutex<Instant>>,
+    observer: Arc<Mutex<Vec<Arc<dyn Hcsr04Observer>>>>,
 }
 
-impl Distance {
-    fn new(trigger_pin: u8, echo_pin: u8) -> Result<Self, Error> {
-        let mut echo = Gpio::new()?.get(echo_pin)?.into_input_pulldown();
-        let trigger = Gpio::new()?.get(trigger_pin)?.into_output();
-        let distance = Arc::new(Mutex::new(-1.0));
-        let start_time = Arc::new(Mutex::new(Instant::now()));
+impl Hcsr04 {
+    pub fn new(trig_pin: u8, echo_pin: u8) -> Result<Self, Error> {
+        let mut trig = Gpio::new()?.get(trig_pin)?.into_output_low();
+        let echo = Gpio::new()?.get(echo_pin)?.into_input_pulldown();
 
-        let start_time_hold1 = start_time.clone();
-        echo.set_async_interrupt(
-            Trigger::RisingEdge,
-            Some(Duration::from_millis(20)),
-            move |_| Distance::write_start_time(start_time_hold1.clone()),
-        )?;
-        let start_time_hold2 = start_time.clone();
-        let distance_hold = distance.clone();
-        echo.set_async_interrupt(
-            Trigger::FallingEdge,
-            Some(Duration::from_millis(20)),
-            move |_| Distance::write_distance(start_time_hold2.clone(), distance_hold.clone()),
-        )?;
+        let distance = Arc::new(Mutex::new(0.0));
+        let distance_clone = distance.clone();
 
-        let dis = Distance {
-            trigger: trigger,
-            echo: echo,
-            distance: distance,
-            start_time: start_time,
-        };
+        let observer: Arc<Mutex<Vec<Arc<dyn Hcsr04Observer>>>> = Arc::new(Mutex::new(Vec::new()));
+        let observer_clone = observer.clone();
 
-        Ok(dis)
+        thread::spawn(move || {
+            trig.set_low();
+            thread::sleep(Duration::from_secs(2));
+
+            loop {
+                trig.set_high();
+                thread::sleep(Duration::from_micros(10));
+                trig.set_low();
+
+                while echo.is_low() {}
+                let t0 = Instant::now();
+                while echo.is_high() {}
+                let dt = t0.elapsed().as_micros() as f64 / 58.0;
+
+                *distance_clone.lock().unwrap() = dt;
+                for obs in observer_clone.lock().unwrap().iter() {
+                    obs.update(dt);
+                }
+                thread::sleep(RATE);
+            }
+        });
+        Ok(Hcsr04 { distance, observer })
     }
-    fn time_to_distance() -> f64 {
-        todo!();
+
+    pub fn get_distance(&self) -> f64 {
+        *self.distance.lock().unwrap()
     }
-    fn write_start_time(start_time: Arc<Mutex<Instant>>) {
-        *start_time.lock().unwrap() = Instant::now();
+    pub fn add_observer(&self, observer: Arc<dyn Hcsr04Observer>) {
+        self.observer.lock().unwrap().push(observer);
     }
-    fn write_distance(start_time: Arc<Mutex<Instant>>, distance: Arc<Mutex<f64>>) {
-        let passed_time = start_time.lock().unwrap().elapsed();
-        // time in us time /58
-        *distance.lock().unwrap() = passed_time.as_micros() as f64 / 58.0;
+}
+
+use std::collections::VecDeque;
+
+struct SensorAverager {
+    values: VecDeque<f64>,
+    capacity: usize,
+}
+
+impl SensorAverager {
+    fn new(capacity: usize) -> Self {
+        Self {
+            values: VecDeque::with_capacity(capacity),
+            capacity,
+        }
+    }
+
+    fn add(&mut self, value: f64) {
+        if self.values.len() == self.capacity {
+            self.values.pop_front();
+        }
+        self.values.push_back(value);
+    }
+
+    fn average(&self) -> f64 {
+        if self.values.is_empty() {
+            0.0
+        } else {
+            let sum: f64 = self.values.iter().sum();
+            sum / self.values.len() as f64
+        }
     }
 }
