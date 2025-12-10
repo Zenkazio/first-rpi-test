@@ -14,9 +14,6 @@ enum State {
 impl StateBehaviour for State {
     fn on_enter(&self) {
         use State::*;
-        match self {
-            Close => {}
-        }
     }
 }
 

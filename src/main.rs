@@ -1,101 +1,77 @@
 use std::error::Error;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
 // The simple-signal crate is used to handle incoming signals.
 use simple_signal::{self, Signal};
 
-use rppal::gpio::Gpio;
+use rppal::gpio::{Event, Gpio, Trigger};
 
-use crate::keypad::Keypad;
+use crate::distance::Hcsr04;
+use crate::pins::*;
+use crate::rgb_swappper::RBGSwapper;
 use crate::rgbled::RGBLed;
 mod distance;
 mod keypad;
+mod pins;
+mod rgb_swappper;
 mod rgbled;
 // Gpio uses BCM pin numbering. BCM GPIO 23 is tied to physical pin 16.
-const GPIO_LED: u8 = 23;
+const STOP_AFTER_N_CHANGES: u8 = 5;
+
+fn input_callback(event: Event, my_data: Arc<Mutex<u8>>) {
+    println!("Event: {:?}", event);
+    *my_data.lock().unwrap() += 1;
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // Retrieve the GPIO pin and configure it as an output.
-    let mut rgb_led = RGBLed::new(17, 27, 22)?;
-    let mut pin = Gpio::new()?.get(GPIO_LED)?.into_output();
-    let mut keypad = Keypad::new(10, 9, 11, 0, 25, 8, 7, 1)?;
-
-    // rgb_led.set_rgb(226, 34, 120)?;
-    rgb_led.green()?;
+    let rgb_led = RGBLed::new(RGB_LED_RED, RGB_LED_GREEN, RGB_LED_BLUE)?;
+    let mut red = Gpio::new()?.get(RED_LED)?.into_output_low();
 
     let running = Arc::new(AtomicBool::new(true));
-
-    // When a SIGINT (Ctrl-C) or SIGTERM signal is caught, atomically set running to false.
     simple_signal::set_handler(&[Signal::Int, Signal::Term], {
         let running = running.clone();
         move |_| {
             running.store(false, Ordering::SeqCst);
         }
     });
-    let mut r;
-    let mut g;
-    let mut b;
-    // Blink the LED until running is set to false.
+    let shared_state = Arc::new(Mutex::new(0));
+
+    let mut input_pin = Gpio::new()?.get(INPUT_BUTTON)?.into_input_pulldown();
+    let shared_state_hold = shared_state.clone();
+    input_pin.set_async_interrupt(
+        Trigger::FallingEdge,
+        Some(Duration::from_millis(50)),
+        move |event| {
+            // Note: you could add more parameters here!
+            input_callback(event, shared_state_hold.clone());
+        },
+    )?;
+    let s = RBGSwapper::new(rgb_led);
+    let sensor = Hcsr04::new(TRIG, ECHO)?;
+    let observer = Arc::new(s);
+    sensor.add_observer(observer);
+
+    //---------------------------------------------------------------------------------------------
+
+    red.set_high();
+    // rgb_led.green()?;
+
+    // -----------------------------------------------------
     while running.load(Ordering::SeqCst) {
-        pin.toggle();
-        keypad.cycle()?;
-        r = 0;
-        g = 0;
-        b = 0;
-        if keypad.state[0][0] {
-            r += 64;
+        if *shared_state.lock().unwrap() >= STOP_AFTER_N_CHANGES {
+            println!("Reached {STOP_AFTER_N_CHANGES} events, exiting...");
+            *shared_state.lock().unwrap() = 0;
         }
-        if keypad.state[0][1] {
-            r += 64;
-        }
-        if keypad.state[0][2] {
-            r += 64;
-        }
-        if keypad.state[0][3] {
-            r += 63;
-        }
-
-        if keypad.state[1][0] {
-            g += 64;
-        }
-        if keypad.state[1][1] {
-            g += 64;
-        }
-        if keypad.state[1][2] {
-            g += 64;
-        }
-        if keypad.state[1][3] {
-            g += 63;
-        }
-
-        if keypad.state[2][0] {
-            b += 64;
-        }
-        if keypad.state[2][1] {
-            b += 64;
-        }
-        if keypad.state[2][2] {
-            b += 64;
-        }
-        if keypad.state[3][3] {
-            b += 63;
-        }
-
-        rgb_led.set_rgb(r, g, b)?;
-        thread::sleep(Duration::from_millis(10));
-        // keypad.display_state();
+        red.toggle();
+        // println!("{:.2}", sensor.get_distance());
+        thread::sleep(Duration::from_millis(200));
     }
-
-    // After we're done blinking, turn the LED off.
-    pin.set_low();
-
+    red.set_low();
+    // rgb_led.clear()?;
     Ok(())
-
-    // When the pin variable goes out of scope, the GPIO pin mode is automatically reset
-    // to its original value, provided reset_on_drop is set to true (default).
 }
 #[cfg(test)]
 mod tests {

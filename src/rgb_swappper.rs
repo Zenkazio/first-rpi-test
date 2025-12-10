@@ -1,20 +1,24 @@
+use std::sync::{Arc, Mutex};
+
 use crate::{distance::Hcsr04Observer, rgbled::RGBLed};
 
 pub struct RBGSwapper {
-    rgb_led: RGBLed,
+    rgb_led: Arc<Mutex<RGBLed>>,
 }
 impl RBGSwapper {
     pub fn new(rgb_led: RGBLed) -> Self {
-        Self { rgb_led }
+        Self {
+            rgb_led: Arc::new(Mutex::new(rgb_led)),
+        }
     }
 }
 impl Hcsr04Observer for RBGSwapper {
-    fn update(&mut self, value: f64) {
+    fn update(&self, value: f64) {
         match value {
-            0.0..10.0 => self.rgb_led.green().unwrap(),
-            10.0..50.0 => self.rgb_led.set_rgb(255, 255, 0).unwrap(),
-            50.0..100.0 => self.rgb_led.red().unwrap(),
-            _ => self.rgb_led.clear().unwrap(),
+            0.0..25.0 => self.rgb_led.lock().unwrap().green().unwrap(),
+            25.0..50.0 => self.rgb_led.lock().unwrap().set_rgb(255, 255, 0).unwrap(),
+            50.0..100.0 => self.rgb_led.lock().unwrap().red().unwrap(),
+            _ => self.rgb_led.lock().unwrap().clear().unwrap(),
         }
     }
 }
