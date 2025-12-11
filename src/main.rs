@@ -73,15 +73,27 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     thread::spawn(move || {
         loop {
-            if *shared_state_hold2.lock().unwrap() != 2 {
+            if *shared_state_hold2.lock().unwrap() == 2 {
                 rgb_led_clone.lock().unwrap().green().unwrap();
                 servo_clone.lock().unwrap().set_degree(0);
                 servo_clone.lock().unwrap().set_degree(90);
                 servo_clone.lock().unwrap().set_degree(180);
                 servo_clone.lock().unwrap().set_degree(90);
 
+                thread::sleep(Duration::from_millis(1000));
+
                 servo_clone.lock().unwrap().set_degree(0);
                 servo_clone.lock().unwrap().set_degree(180);
+                servo_clone.lock().unwrap().set_degree(0);
+
+                thread::sleep(Duration::from_millis(1000));
+
+                servo_clone.lock().unwrap().set_degree(45);
+                servo_clone.lock().unwrap().set_degree(0);
+
+                thread::sleep(Duration::from_millis(1000));
+
+                servo_clone.lock().unwrap().set_degree(135);
                 servo_clone.lock().unwrap().set_degree(0);
             }
             rgb_led_clone.lock().unwrap().red().unwrap();
