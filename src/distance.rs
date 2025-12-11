@@ -9,7 +9,7 @@ pub trait Hcsr04Observer: Send + Sync {
     fn update(&self, value: f64);
 }
 pub struct Hcsr04 {
-    distance: Arc<Mutex<SensorAverager>>,
+    distance: Arc<Mutex<f64>>,
     observer: Arc<Mutex<Vec<Arc<dyn Hcsr04Observer>>>>,
 }
 
@@ -18,7 +18,7 @@ impl Hcsr04 {
         let mut trig = Gpio::new()?.get(trig_pin)?.into_output_low();
         let echo = Gpio::new()?.get(echo_pin)?.into_input_pulldown();
 
-        let distance = Arc::new(Mutex::new(SensorAverager::new(10)));
+        let distance = Arc::new(Mutex::new(0.0));
         let distance_clone = distance.clone();
 
         let observer: Arc<Mutex<Vec<Arc<dyn Hcsr04Observer>>>> = Arc::new(Mutex::new(Vec::new()));
@@ -37,13 +37,12 @@ impl Hcsr04 {
                 let t0 = Instant::now();
                 while echo.is_high() {}
                 let dt = t0.elapsed().as_micros() as f64 / 58.0;
-
-                let mut tmp = distance_clone.lock().unwrap();
-                tmp.add(dt);
-                for obs in observer_clone.lock().unwrap().iter() {
-                    obs.update(tmp.average());
+                {
+                    *distance_clone.lock().unwrap() = dt;
+                    for obs in observer_clone.lock().unwrap().iter() {
+                        obs.update(dt);
+                    }
                 }
-                drop(tmp);
                 thread::sleep(RATE);
             }
         });
@@ -51,7 +50,7 @@ impl Hcsr04 {
     }
 
     pub fn get_distance(&self) -> f64 {
-        self.distance.lock().unwrap().average()
+        *self.distance.lock().unwrap()
     }
     pub fn add_observer(&self, observer: Arc<dyn Hcsr04Observer>) {
         self.observer.lock().unwrap().push(observer);
