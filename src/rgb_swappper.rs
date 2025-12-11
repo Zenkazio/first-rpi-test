@@ -6,10 +6,8 @@ pub struct RBGSwapper {
     rgb_led: Arc<Mutex<RGBLed>>,
 }
 impl RBGSwapper {
-    pub fn new(rgb_led: RGBLed) -> Self {
-        Self {
-            rgb_led: Arc::new(Mutex::new(rgb_led)),
-        }
+    pub fn new(rgb_led: Arc<Mutex<RGBLed>>) -> Self {
+        Self { rgb_led: rgb_led }
     }
 }
 impl Hcsr04Observer for RBGSwapper {

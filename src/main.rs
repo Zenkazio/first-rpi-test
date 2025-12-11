@@ -27,7 +27,11 @@ fn input_callback(event: Event, my_data: Arc<Mutex<u8>>) {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let rgb_led = RGBLed::new(RGB_LED_RED, RGB_LED_GREEN, RGB_LED_BLUE)?;
+    let rgb_led = Arc::new(Mutex::new(RGBLed::new(
+        RGB_LED_RED,
+        RGB_LED_GREEN,
+        RGB_LED_BLUE,
+    )?));
     let mut red = Gpio::new()?.get(RED_LED)?.into_output_low();
 
     let running = Arc::new(AtomicBool::new(true));
@@ -49,7 +53,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             input_callback(event, shared_state_hold.clone());
         },
     )?;
-    let s = RBGSwapper::new(rgb_led);
+    let s = RBGSwapper::new(rgb_led.clone());
     let sensor = Hcsr04::new(TRIG, ECHO)?;
     let observer = Arc::new(s);
     sensor.add_observer(observer);
@@ -57,7 +61,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     //---------------------------------------------------------------------------------------------
 
     red.set_high();
-    // rgb_led.green()?;
+    rgb_led.lock().unwrap().green()?;
 
     // -----------------------------------------------------
     while running.load(Ordering::SeqCst) {
