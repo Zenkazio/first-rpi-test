@@ -13,11 +13,13 @@ use crate::distance::Hcsr04;
 use crate::pins::*;
 use crate::rgb_swappper::RBGSwapper;
 use crate::rgbled::RGBLed;
+use crate::servo::Servo;
 mod distance;
 mod keypad;
 mod pins;
 mod rgb_swappper;
 mod rgbled;
+mod servo;
 // Gpio uses BCM pin numbering. BCM GPIO 23 is tied to physical pin 16.
 const STOP_AFTER_N_CHANGES: u8 = 5;
 
@@ -53,16 +55,39 @@ fn main() -> Result<(), Box<dyn Error>> {
             input_callback(event, shared_state_hold.clone());
         },
     )?;
-    let s = RBGSwapper::new(rgb_led.clone());
-    let sensor = Hcsr04::new(TRIG, ECHO)?;
-    let observer = Arc::new(s);
-    sensor.add_observer(observer);
 
+    // let s = RBGSwapper::new(rgb_led.clone());
+    // let sensor = Hcsr04::new(TRIG, ECHO)?;
+    // let observer = Arc::new(s);
+    // sensor.add_observer(observer);
+
+    let servo = Arc::new(Mutex::new(Servo::new(SERVO_PULS)?));
+    let servo_clone = servo.clone();
+    let rgb_led_clone = rgb_led.clone();
+    let shared_state_hold2 = shared_state.clone();
+    thread::sleep(Duration::from_millis(1000));
     //---------------------------------------------------------------------------------------------
 
     red.set_high();
     rgb_led.lock().unwrap().green()?;
 
+    thread::spawn(move || {
+        loop {
+            if *shared_state_hold2.lock().unwrap() != 2 {
+                rgb_led_clone.lock().unwrap().green().unwrap();
+                servo_clone.lock().unwrap().set_degree(0);
+                servo_clone.lock().unwrap().set_degree(90);
+                servo_clone.lock().unwrap().set_degree(180);
+                servo_clone.lock().unwrap().set_degree(90);
+
+                servo_clone.lock().unwrap().set_degree(0);
+                servo_clone.lock().unwrap().set_degree(180);
+                servo_clone.lock().unwrap().set_degree(0);
+            }
+            rgb_led_clone.lock().unwrap().red().unwrap();
+            thread::sleep(Duration::from_secs(3));
+        }
+    });
     // -----------------------------------------------------
     while running.load(Ordering::SeqCst) {
         if *shared_state.lock().unwrap() >= STOP_AFTER_N_CHANGES {
