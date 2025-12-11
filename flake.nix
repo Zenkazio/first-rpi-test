@@ -2,7 +2,8 @@
   description = "first-rpi-test – native + cross builds";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    system-flake.url = "git+ssh://git@github.com/Zenkazio/.store.git";
+    nixpkgs.follows = "system-flake/nixpkgs";
   };
 
   outputs =
