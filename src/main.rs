@@ -10,11 +10,13 @@ use simple_signal::{self, Signal};
 use rppal::gpio::{Event, Gpio, Trigger};
 
 use crate::distance::Hcsr04;
+use crate::i2c::{I2CMaster, MPU6050};
 use crate::pins::*;
 use crate::rgb_swappper::RBGSwapper;
 use crate::rgbled::RGBLed;
 use crate::servo::Servo;
 mod distance;
+mod i2c;
 mod keypad;
 mod pins;
 mod rgb_swappper;
@@ -65,7 +67,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let servo_clone = servo.clone();
     let rgb_led_clone = rgb_led.clone();
     let shared_state_hold2 = shared_state.clone();
-    thread::sleep(Duration::from_millis(1000));
+    // thread::sleep(Duration::from_millis(1000));
+
+    let i2c_master = Arc::new(Mutex::new(I2CMaster::new()?));
+    let mut mpu6050 = MPU6050::new(i2c_master);
+    mpu6050.wake_sensor();
     //---------------------------------------------------------------------------------------------
 
     red.set_high();
@@ -107,8 +113,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             *shared_state.lock().unwrap() = 0;
         }
         red.toggle();
+        // println!("{:.2}", mpu6050.get_temperature());
         // println!("{:.2}", sensor.get_distance());
-        thread::sleep(Duration::from_millis(200));
+        thread::sleep(Duration::from_millis(1000));
     }
     red.set_low();
     // rgb_led.clear()?;

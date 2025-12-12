@@ -49,6 +49,12 @@ impl MPU6050 {
             i2c_master,
         }
     }
+    pub fn wake_sensor(&mut self) {
+        self.i2c_master
+            .lock()
+            .unwrap()
+            .send(self.address, 0x6B, &[0x00]);
+    }
     pub fn get_temperature(&mut self) -> f32 {
         let mut temp_raw = [0u8, 2];
         self.i2c_master
