@@ -1,7 +1,9 @@
 #![allow(unused)]
 
+use std::{thread, time::Duration};
+
 use rppal::gpio::{Error, Gpio, Level, OutputPin};
-const STEPS_PER_ROTATION: u16 = 2048;
+const STEPS_PER_ROTATION: u16 = 512;
 pub struct Stepper {
     int1: OutputPin,
     int2: OutputPin,
@@ -30,12 +32,24 @@ impl Stepper {
         })
     }
 
-    pub fn step(&mut self) {
+    pub fn one_step(&mut self) {
         for s in self.phases {
             self.int1.write(s[0]);
             self.int2.write(s[1]);
             self.int3.write(s[2]);
             self.int4.write(s[3]);
+            thread::sleep(Duration::from_micros(1000));
         }
+    }
+    pub fn one_rotation(&mut self) {
+        for _ in 0..STEPS_PER_ROTATION {
+            self.one_step();
+        }
+    }
+    pub fn clear(&mut self) {
+        self.int1.set_low();
+        self.int2.set_low();
+        self.int3.set_low();
+        self.int4.set_low();
     }
 }

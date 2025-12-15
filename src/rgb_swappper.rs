@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::sync::{Arc, Mutex};
 
 use crate::{distance::Hcsr04Observer, rgbled::RGBLed};

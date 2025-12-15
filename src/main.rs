@@ -9,12 +9,11 @@ use simple_signal::{self, Signal};
 
 use rppal::gpio::{Event, Gpio, Trigger};
 
-use crate::distance::Hcsr04;
 use crate::i2c::{I2CMaster, MPU6050};
 use crate::pins::*;
-use crate::rgb_swappper::RBGSwapper;
 use crate::rgbled::RGBLed;
 use crate::servo::Servo;
+use crate::stepper::Stepper;
 mod distance;
 mod i2c;
 mod keypad;
@@ -22,6 +21,7 @@ mod pins;
 mod rgb_swappper;
 mod rgbled;
 mod servo;
+mod stepper;
 // Gpio uses BCM pin numbering. BCM GPIO 23 is tied to physical pin 16.
 const STOP_AFTER_N_CHANGES: u8 = 5;
 
@@ -63,6 +63,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // let observer = Arc::new(s);
     // sensor.add_observer(observer);
 
+    let mut stepper = Stepper::new(KEYPAD_OUT1, KEYPAD_OUT2, KEYPAD_OUT3, KEYPAD_OUT4)?;
+
     let servo = Arc::new(Mutex::new(Servo::new(SERVO_PULS)?));
     let servo_clone = servo.clone();
     let rgb_led_clone = rgb_led.clone();
@@ -76,6 +78,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     red.set_high();
     rgb_led.lock().unwrap().green()?;
+    thread::spawn(move || {
+        stepper.one_rotation();
+        stepper.clear();
+    });
 
     thread::spawn(move || {
         loop {
@@ -83,13 +89,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 rgb_led_clone.lock().unwrap().green().unwrap();
                 servo_clone.lock().unwrap().set_degree(0);
                 servo_clone.lock().unwrap().set_degree(90);
-                servo_clone.lock().unwrap().set_degree(180);
+                servo_clone.lock().unwrap().set_degree(100);
                 servo_clone.lock().unwrap().set_degree(90);
 
                 thread::sleep(Duration::from_millis(1000));
 
                 servo_clone.lock().unwrap().set_degree(0);
-                servo_clone.lock().unwrap().set_degree(180);
+                servo_clone.lock().unwrap().set_degree(100);
                 servo_clone.lock().unwrap().set_degree(0);
 
                 thread::sleep(Duration::from_millis(1000));
@@ -99,7 +105,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                 thread::sleep(Duration::from_millis(1000));
 
-                servo_clone.lock().unwrap().set_degree(135);
+                servo_clone.lock().unwrap().set_degree(100);
                 servo_clone.lock().unwrap().set_degree(0);
             }
             rgb_led_clone.lock().unwrap().red().unwrap();
