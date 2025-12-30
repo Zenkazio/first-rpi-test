@@ -17,6 +17,7 @@ use crate::stepper::Stepper;
 mod distance;
 mod i2c;
 mod keypad;
+mod led_stripe;
 mod pins;
 mod rgb_swappper;
 mod rgbled;
