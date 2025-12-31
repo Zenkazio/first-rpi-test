@@ -15,6 +15,7 @@ use crate::rgbled::RGBLed;
 use crate::servo::Servo;
 use crate::stepper::Stepper;
 mod distance;
+mod door_statemachine;
 mod i2c;
 mod keypad;
 mod led_stripe;
