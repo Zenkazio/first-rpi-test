@@ -144,9 +144,9 @@
             <div class="setting-item">
                 <label for="modeSelect">Modus</label>
                 <select id="modeSelect">
-                    <option value="static">Statisch</option>
-                    <option value="blink">Blinken</option>
-                    <option value="fade">Fading</option>
+                    <option value="static">Static</option>
+                    <option value="blink">Blink</option>
+                    <option value="dot">Dot</option>
                 </select>
             </div>
 
@@ -166,7 +166,7 @@
             </div>
 
             <button class="save-btn" onclick="sendSettings()">Ausführen</button>
-            <button class="save-btn" onclick="fetch('/reset-led')">
+            <button class="save-btn" onclick="fetch('/led/reset')">
                 Reset
             </button>
         </div>
@@ -211,7 +211,7 @@
                     repeat: document.getElementById("repeatInput").checked,
                 };
 
-                fetch("/settings", {
+                fetch("/led/settings", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(data),

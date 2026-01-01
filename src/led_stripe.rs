@@ -1,6 +1,12 @@
 #![allow(unused)]
 
-use std::{error::Error, thread::sleep, time::Duration};
+use std::{
+    error::Error,
+    num,
+    sync::{Arc, atomic::AtomicBool},
+    thread::sleep,
+    time::Duration,
+};
 
 use rppal::gpio::{Gpio, OutputPin};
 
@@ -57,20 +63,35 @@ impl LEDStripe {
         }
         self.send_ret_code();
     }
-    pub fn activate_sequenz(&mut self, sequenz: Sequenz, repeat: bool) {
+    pub fn reset(&mut self) {
+        for _ in 0..(self.number_of_leds * 24) {
+            self.send_0_code();
+        }
+        self.send_ret_code();
+    }
+    pub fn activate_sequenz(&mut self, sequenz: Sequenz, repeat: Arc<AtomicBool>) {
+        self.reset();
         let frame_rate = sequenz.framerate;
         let wait = Duration::from_secs_f32(1.0 / frame_rate);
         let refino = sequenz.refine();
-        let r: bool = repeat;
-        loop {
+
+        for rframe in &refino.frames {
+            self.activate_frame(rframe);
+            sleep(wait);
+        }
+
+        while repeat.load(std::sync::atomic::Ordering::SeqCst) {
             for rframe in &refino.frames {
                 self.activate_frame(rframe);
                 sleep(wait);
-            }
-            if !r {
-                break;
+                if !repeat.load(std::sync::atomic::Ordering::SeqCst) {
+                    break;
+                }
             }
         }
+    }
+    pub fn create_static(&self, color: (u8, u8, u8)) -> Sequenz {
+        SequenzGenerator::create_static(self.number_of_leds, color)
     }
     pub fn create_blink(&self, color: (u8, u8, u8), frequenz: f32) -> Sequenz {
         SequenzGenerator::create_blink(self.number_of_leds, color, frequenz)
@@ -84,6 +105,16 @@ impl LEDStripe {
 pub struct SequenzGenerator;
 
 impl SequenzGenerator {
+    pub fn create_static(num_of_leds: usize, color: (u8, u8, u8)) -> Sequenz {
+        let mut on = Vec::new();
+        for _ in 0..num_of_leds {
+            on.push(LED::new(color.0, color.1, color.2))
+        }
+        Sequenz {
+            frames: vec![Frame(on)],
+            framerate: 1.0,
+        }
+    }
     pub fn create_blink(num_of_leds: usize, color: (u8, u8, u8), frequenz: f32) -> Sequenz {
         let mut on = Vec::new();
         for _ in 0..num_of_leds {

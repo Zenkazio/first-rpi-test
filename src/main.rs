@@ -17,57 +17,133 @@ use axum::{
 };
 use serde::Deserialize;
 use std::{
+    error::Error,
     net::SocketAddr,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
+use tokio::task::spawn_blocking;
+
+use crate::{led_stripe::LEDStripe, pins::RED_LED};
+
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq)]
+#[serde(rename_all = "lowercase")]
+enum WorkMode {
+    Static,
+    Blink,
+    Dot,
+}
 
 #[derive(Deserialize, Debug, Clone)]
 struct Settings {
     r: u8,
     g: u8,
     b: u8,
-    mode: String,
+    mode: WorkMode,
     speed: f32,
     repeat: bool,
 }
 
 struct AppState {
-    current_settings: Mutex<Settings>,
+    led_stripe: Arc<Mutex<LEDStripe>>,
+    left_running: Arc<AtomicBool>,
+    right_running: Arc<AtomicBool>,
+    led_repeat: Arc<AtomicBool>,
+    led_thread_mutex: Arc<Mutex<()>>,
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
+    let led_stripe = LEDStripe::new(RED_LED, 150)?;
     let shared_state = Arc::new(AppState {
-        current_settings: Mutex::new(Settings {
-            r: 255,
-            g: 0,
-            b: 0,
-            mode: "static".to_string(),
-            speed: 1.0,
-            repeat: false,
-        }),
+        led_stripe: Arc::new(Mutex::new(led_stripe)),
+        left_running: Arc::new(AtomicBool::new(false)),
+        right_running: Arc::new(AtomicBool::new(false)),
+        led_repeat: Arc::new(AtomicBool::new(false)),
+        led_thread_mutex: Arc::new(Mutex::new(())),
     });
 
     let app = Router::new()
         .route("/", get(index_handler))
-        .route("/settings", post(settings_handler))
+        .route("/led/reset", get(led_reset_handler))
+        .route("/led/settings", post(led_settings_handler))
+        .route("/left/start", get(left_start_handler))
+        .route("/left/stop", get(left_stop_handler))
+        .route("/right/start", get(right_start_handler))
+        .route("/right/stop", get(right_stop_handler))
         .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 14444));
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+    Ok(())
 }
+
 async fn index_handler() -> Html<&'static str> {
     Html(include_str!("../index.html"))
 }
 
-async fn settings_handler(
+async fn led_settings_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<Settings>,
 ) -> &'static str {
-    let mut settings = state.current_settings.lock().unwrap();
-    *settings = payload;
+    let led_repeat_copy = state.led_repeat.clone();
+    let led_stipe_copy = state.led_stripe.clone();
+    let led_thread_mutex_copy = state.led_thread_mutex.clone();
+    state.led_repeat.store(payload.repeat, Ordering::SeqCst);
 
-    println!("State aktualisiert: {:?}", *settings);
+    spawn_blocking(async move || {
+        let _guard = led_thread_mutex_copy.lock().unwrap();
+        let mut stripe = led_stipe_copy.lock().unwrap();
+        use WorkMode::*;
+        let seq = match payload.mode {
+            Static => stripe.create_static((payload.r, payload.g, payload.b)),
+            Blink => stripe.create_blink((payload.r, payload.g, payload.b), payload.speed),
+            Dot => stripe.create_dot((payload.r, payload.g, payload.b), payload.speed),
+        };
+        stripe.activate_sequenz(seq, led_repeat_copy);
+    });
+    println!("New LED Stripe Data: {:?}", payload);
     "Einstellungen gespeichert!"
+}
+async fn led_reset_handler(State(state): State<Arc<AppState>>) -> &'static str {
+    state.led_repeat.store(false, Ordering::SeqCst);
+    state.led_stripe.lock().unwrap().reset();
+    println!("Reset LEDStripe");
+    "Led Resetted!"
+}
+
+async fn left_start_handler(State(state): State<Arc<AppState>>) -> &'static str {
+    if state.left_running.load(Ordering::SeqCst) || state.right_running.load(Ordering::SeqCst) {
+        return "Motor läuft bereits";
+    }
+    state.left_running.store(true, Ordering::SeqCst);
+    println!("Left Start");
+    "Left Start"
+}
+async fn right_start_handler(State(state): State<Arc<AppState>>) -> &'static str {
+    if state.left_running.load(Ordering::SeqCst) || state.right_running.load(Ordering::SeqCst) {
+        return "Motor läuft bereits";
+    }
+    state.right_running.store(true, Ordering::SeqCst);
+    println!("Right Start");
+    "Right Start"
+}
+async fn left_stop_handler(State(state): State<Arc<AppState>>) -> &'static str {
+    if !state.left_running.load(Ordering::SeqCst) {
+        return "Left is stopped";
+    }
+    state.left_running.store(false, Ordering::SeqCst);
+    println!("Left Stop");
+    "Left Stop"
+}
+async fn right_stop_handler(State(state): State<Arc<AppState>>) -> &'static str {
+    if !state.right_running.load(Ordering::SeqCst) {
+        return "Right is stopped";
+    }
+    state.right_running.store(false, Ordering::SeqCst);
+    println!("Right Stop");
+    "Right Stop"
 }
