@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="de">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>RPi Control</title>
+        <style>
+            body {
+                font-family: sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                margin: 0;
+                background-color: #f0f0f0;
+            }
+            button {
+                padding: 20px 40px;
+                font-size: 1.5rem;
+                cursor: pointer;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                border-radius: 8px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>RPi Remote</h1>
+        <button onclick="fetch('/toggle')">PIN umschalten</button>
+    </body>
+</html>
