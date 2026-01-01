@@ -2,32 +2,221 @@
 <html lang="de">
     <head>
         <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>RPi Control</title>
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+        />
+        <title>RPi Remote Control</title>
         <style>
             body {
                 font-family: sans-serif;
+                margin: 0;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                height: 100vh;
-                margin: 0;
-                background-color: #f0f0f0;
+                min-height: 100vh;
+                background-color: #1a1a1a;
+                color: white;
             }
+
+            .container {
+                display: flex;
+                width: 90%;
+                max-width: 500px;
+                gap: 20px;
+                justify-content: space-between;
+                margin: 30px;
+            }
+
             button {
-                padding: 20px 40px;
-                font-size: 1.5rem;
-                cursor: pointer;
-                background-color: #007bff;
+                flex: 1;
+                height: 120px;
+                font-size: 3rem;
                 color: white;
                 border: none;
-                border-radius: 8px;
+                border-radius: 15px;
+                cursor: pointer;
+                user-select: none;
+                -webkit-tap-highlight-color: transparent;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition:
+                    transform 0.1s,
+                    opacity 0.1s;
+            }
+
+            .btn-left {
+                background-color: #e74c3c;
+                transform: rotate(180deg);
+            }
+            .btn-left:active {
+                transform: rotate(180deg) scale(0.95);
+            }
+
+            .btn-right {
+                background-color: #2ecc71;
+            }
+            .btn-right:active {
+                transform: scale(0.95);
+            }
+
+            .settings-panel {
+                width: 80%;
+                max-width: 460px;
+                background: #333;
+                padding: 25px;
+                border-radius: 15px;
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .setting-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            input,
+            select {
+                padding: 8px;
+                border-radius: 5px;
+                border: none;
+                font-size: 1rem;
+            }
+
+            .save-btn {
+                height: 50px;
+                font-size: 1.2rem;
+                background-color: #3498db;
+                margin-top: 10px;
             }
         </style>
     </head>
     <body>
-        <h1>RPi Remote</h1>
-        <button onclick="fetch('/toggle')">PIN umschalten</button>
+        <div class="settings-panel">
+            <div
+                class="setting-item"
+                style="flex-direction: column; align-items: stretch; gap: 10px"
+            >
+                <div style="display: flex; justify-content: space-between">
+                    <span>RGB:</span>
+                    <span id="previewText">R:255 G:0 B:0</span>
+                    <div
+                        id="colorPreview"
+                        style="
+                            width: 30px;
+                            height: 30px;
+                            border-radius: 5px;
+                            background: #ff0000;
+                            border: 1px solid white;
+                        "
+                    ></div>
+                </div>
+                <input
+                    type="range"
+                    id="rRange"
+                    min="0"
+                    max="255"
+                    value="255"
+                    oninput="updatePreview()"
+                />
+                <input
+                    type="range"
+                    id="gRange"
+                    min="0"
+                    max="255"
+                    value="0"
+                    oninput="updatePreview()"
+                />
+                <input
+                    type="range"
+                    id="bRange"
+                    min="0"
+                    max="255"
+                    value="0"
+                    oninput="updatePreview()"
+                />
+            </div>
+
+            <div class="setting-item">
+                <label for="modeSelect">Modus</label>
+                <select id="modeSelect">
+                    <option value="static">Statisch</option>
+                    <option value="blink">Blinken</option>
+                    <option value="fade">Fading</option>
+                </select>
+            </div>
+
+            <div class="setting-item">
+                <label for="speedInput">Geschwindigkeit(Hz)</label>
+                <input
+                    type="number"
+                    id="speedInput"
+                    step="0.1"
+                    value="1.0"
+                    style="width: 80px"
+                />
+            </div>
+            <div class="setting-item">
+                <label for="repeatInput">Wiederholen</label>
+                <input type="checkbox" id="repeatInput" />
+            </div>
+
+            <button class="save-btn" onclick="sendSettings()">Ausführen</button>
+            <button class="save-btn" onclick="fetch('/reset-led')">
+                Reset
+            </button>
+        </div>
+        <div class="container">
+            <button
+                class="btn-left"
+                onpointerdown="fetch('/left/start')"
+                onpointerup="fetch('/left/stop')"
+                onpointerleave="fetch('/left/stop')"
+            >
+                ➤
+            </button>
+
+            <button
+                class="btn-right"
+                onpointerdown="fetch('/right/start')"
+                onpointerup="fetch('/right/stop')"
+                onpointerleave="fetch('/right/stop')"
+            >
+                ➤
+            </button>
+        </div>
+        <script>
+            function updatePreview() {
+                const r = document.getElementById("rRange").value;
+                const g = document.getElementById("gRange").value;
+                const b = document.getElementById("bRange").value;
+                document.getElementById("colorPreview").style.backgroundColor =
+                    `rgb(${r},${g},${b})`;
+                document.getElementById("previewText").textContent =
+                    `R: ${r} G: ${g} B: ${b}`;
+            }
+            function sendSettings() {
+                const data = {
+                    r: parseInt(document.getElementById("rRange").value),
+                    g: parseInt(document.getElementById("gRange").value),
+                    b: parseInt(document.getElementById("bRange").value),
+                    mode: document.getElementById("modeSelect").value,
+                    speed: parseFloat(
+                        document.getElementById("speedInput").value,
+                    ),
+                    repeat: document.getElementById("repeatInput").checked,
+                };
+
+                fetch("/settings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(data),
+                });
+            }
+        </script>
     </body>
 </html>

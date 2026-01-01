@@ -1,0 +1,9 @@
+[
+  {
+    "label": "Nix Run",
+    "command": "nix run",
+    "allow_concurrent_runs": true,
+    "reveal": "no_focus",
+    //"hide": "on_success"
+  },
+]
