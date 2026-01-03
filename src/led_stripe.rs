@@ -5,13 +5,13 @@ use std::{
     num,
     sync::{Arc, atomic::AtomicBool},
     thread::sleep,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use rppal::gpio::{Gpio, OutputPin};
 
-const SHORT: u64 = 300; //220-380 for 1 220-420
-const LONG: u64 = 950; //580-1600
+const SHORT: u64 = 100; //220-380 for 1 220-420
+const LONG: u64 = 750; //580-1600
 
 //each bit is 1,25us
 
@@ -36,24 +36,47 @@ impl LEDStripe {
             number_of_leds: number_of_leds,
         })
     }
-
+    #[inline]
     fn send_0_code(&mut self) {
         self.pin.set_high();
-        sleep(T0H);
+        let target = Instant::now() + T0H;
+        while Instant::now() < target {
+            std::hint::spin_loop();
+        }
+        //sleep(T0H);
         self.pin.set_low();
-        sleep(T0L);
+        let target = Instant::now() + T0L;
+        while Instant::now() < target {
+            std::hint::spin_loop();
+        }
+        //sleep(T0L);
     }
+    #[inline]
     fn send_1_code(&mut self) {
         self.pin.set_high();
-        sleep(T0H);
+        let target = Instant::now() + T1H;
+        while Instant::now() < target {
+            std::hint::spin_loop();
+        }
+        //sleep(T1H);
         self.pin.set_low();
-        sleep(T0L);
+        let target = Instant::now() + T1L;
+        while Instant::now() < target {
+            std::hint::spin_loop();
+        }
+        //sleep(T1L);
     }
+    #[inline]
     fn send_ret_code(&mut self) {
         self.pin.set_low();
-        sleep(RES);
+        let target = Instant::now() + RES;
+        while Instant::now() < target {
+            std::hint::spin_loop();
+        }
     }
     fn activate_frame(&mut self, frame: &String) {
+        dbg!(frame);
+        let start = Instant::now();
         for bit in frame.chars() {
             match bit {
                 '0' => self.send_0_code(),
@@ -61,6 +84,7 @@ impl LEDStripe {
                 _ => {}
             }
         }
+        dbg!(Instant::now() - start);
         self.send_ret_code();
     }
     pub fn reset(&mut self) {
@@ -77,13 +101,19 @@ impl LEDStripe {
 
         for rframe in &refino.frames {
             self.activate_frame(rframe);
-            sleep(wait);
+            let target = Instant::now() + wait;
+            while Instant::now() < target {
+                std::hint::spin_loop();
+            }
         }
 
         while repeat.load(std::sync::atomic::Ordering::SeqCst) {
             for rframe in &refino.frames {
                 self.activate_frame(rframe);
-                sleep(wait);
+                let target = Instant::now() + wait;
+                while Instant::now() < target {
+                    std::hint::spin_loop();
+                }
                 if !repeat.load(std::sync::atomic::Ordering::SeqCst) {
                     break;
                 }
@@ -96,9 +126,14 @@ impl LEDStripe {
     pub fn create_blink(&self, color: (u8, u8, u8), frequenz: f32) -> Sequenz {
         SequenzGenerator::create_blink(self.number_of_leds, color, frequenz)
     }
-    pub fn create_dot(&self, color: (u8, u8, u8), frequenz: f32) -> Sequenz {
-        todo!("match signature");
-        SequenzGenerator::create_dot(self.number_of_leds, color, frequenz, 0, 0)
+    pub fn create_dot(
+        &self,
+        color: (u8, u8, u8),
+        frequenz: f32,
+        blur_trail: usize,
+        blur_head: usize,
+    ) -> Sequenz {
+        SequenzGenerator::create_dot(self.number_of_leds, color, frequenz, blur_trail, blur_head)
     }
 }
 
@@ -184,6 +219,9 @@ pub struct Sequenz {
     framerate: f32,
 }
 impl Sequenz {
+    pub fn new(frames: Vec<Frame>, framerate: f32) -> Self {
+        Sequenz { frames, framerate }
+    }
     fn refine(self) -> RefinedSequenz {
         let mut rfframes = Vec::new();
         for frame in self.frames {
@@ -200,7 +238,7 @@ struct RefinedSequenz {
     frames: Vec<String>,
     framerate: f32,
 }
-pub struct Frame(Vec<LED>);
+pub struct Frame(pub Vec<LED>);
 
 impl Frame {
     fn refine(self) -> RefinedFrame {
