@@ -116,7 +116,7 @@ async fn led_settings_handler(
     let led_thread_mutex_copy = state.led_thread_mutex.clone();
     state.led_repeat.store(payload.repeat, Ordering::SeqCst);
 
-    spawn(async move || {
+    spawn_blocking(async move || {
         println!("spawn thread");
         let _guard = led_thread_mutex_copy.lock().unwrap();
         eprintln!("start work");
