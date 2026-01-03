@@ -79,6 +79,7 @@
           ];
           env.RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
         };
+
       apps.x86_64-linux.deploy =
         let
           pkgs = import nixpkgs { system = "x86_64-linux"; };
