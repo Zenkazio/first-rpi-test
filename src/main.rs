@@ -24,9 +24,12 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-use tokio::task::spawn_blocking;
+use tokio::{spawn, task::spawn_blocking};
 
-use crate::{led_stripe::LEDStripe, pins::RED_LED};
+use crate::{
+    led_stripe::{Frame, LED, LEDStripe, Sequenz},
+    pins::RED_LED,
+};
 
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -56,7 +59,25 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let led_stripe = LEDStripe::new(RED_LED, 150)?;
+    let mut led_stripe = LEDStripe::new(RED_LED, 150)?;
+    // let led1 = LED::new(255, 0, 0);
+    // let led2 = LED::new(0, 255, 0);
+    // let frame = Frame(vec![led1, led2]);
+    // let led1 = LED::new(255, 0, 0);
+    // let led2 = LED::new(0, 255, 0);
+    // let led3 = LED::new(0, 255, 0);
+    // let led4 = LED::new(0, 255, 0);
+    // let frame2 = Frame(vec![led2, led1, led3, led4]);
+    // let seq = Sequenz::new(vec![frame, frame2], 1.0);
+    // led_stripe.activate_sequenz(seq, Arc::new(AtomicBool::new(false)));
+    // let seq = led_stripe.create_static((255, 0, 0));
+    // led_stripe.activate_sequenz(seq, Arc::new(AtomicBool::new(false)));
+    // let seq = led_stripe.create_static((0, 255, 0));
+    // led_stripe.activate_sequenz(seq, Arc::new(AtomicBool::new(false)));
+    // let seq = led_stripe.create_dot((0, 255, 0), 8.0, 0, 0);
+    // led_stripe.activate_sequenz(seq, Arc::new(AtomicBool::new(true)));
+    // return Ok(());
+
     let shared_state = Arc::new(AppState {
         led_stripe: Arc::new(Mutex::new(led_stripe)),
         left_running: Arc::new(AtomicBool::new(false)),
@@ -89,21 +110,25 @@ async fn led_settings_handler(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<Settings>,
 ) -> &'static str {
+    println!("Enter led settings");
     let led_repeat_copy = state.led_repeat.clone();
     let led_stipe_copy = state.led_stripe.clone();
     let led_thread_mutex_copy = state.led_thread_mutex.clone();
     state.led_repeat.store(payload.repeat, Ordering::SeqCst);
 
-    spawn_blocking(async move || {
+    spawn(async move || {
+        println!("spawn thread");
         let _guard = led_thread_mutex_copy.lock().unwrap();
+        eprintln!("start work");
         let mut stripe = led_stipe_copy.lock().unwrap();
         use WorkMode::*;
         let seq = match payload.mode {
             Static => stripe.create_static((payload.r, payload.g, payload.b)),
             Blink => stripe.create_blink((payload.r, payload.g, payload.b), payload.speed),
-            Dot => stripe.create_dot((payload.r, payload.g, payload.b), payload.speed),
+            Dot => stripe.create_dot((payload.r, payload.g, payload.b), payload.speed, 0, 0),
         };
         stripe.activate_sequenz(seq, led_repeat_copy);
+        println!("end work");
     });
     println!("New LED Stripe Data: {:?}", payload);
     "Einstellungen gespeichert!"
