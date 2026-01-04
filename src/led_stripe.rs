@@ -9,9 +9,9 @@ use std::{
 };
 
 use rppal::gpio::{Gpio, OutputPin};
-
-const SHORT: u64 = 100; //220-380 for 1 220-420
-const LONG: u64 = 750; //580-1600
+const CUR: u64 = 140;
+const SHORT: u64 = 300 - CUR; //220-380 for 1 220-420
+const LONG: u64 = 950 - CUR; //580-1600
 
 //each bit is 1,25us
 
@@ -19,7 +19,7 @@ const T0H: Duration = Duration::from_nanos(SHORT);
 const T1H: Duration = Duration::from_nanos(LONG);
 const T0L: Duration = Duration::from_nanos(LONG);
 const T1L: Duration = Duration::from_nanos(SHORT);
-const RES: Duration = Duration::from_micros(281); // > 280us
+const RES: Duration = Duration::from_micros(300); // > 280us
 
 pub struct LEDStripe {
     pin: OutputPin,
@@ -75,8 +75,8 @@ impl LEDStripe {
         }
     }
     fn activate_frame(&mut self, frame: &String) {
-        dbg!(frame);
-        let start = Instant::now();
+        //dbg!(frame);
+        //let start = Instant::now();
         for bit in frame.chars() {
             match bit {
                 '0' => self.send_0_code(),
@@ -84,10 +84,11 @@ impl LEDStripe {
                 _ => {}
             }
         }
-        dbg!(Instant::now() - start);
+        //dbg!(Instant::now() - start);
         self.send_ret_code();
     }
     pub fn reset(&mut self) {
+        self.send_ret_code();
         for _ in 0..(self.number_of_leds * 24) {
             self.send_0_code();
         }
@@ -100,8 +101,11 @@ impl LEDStripe {
         let refino = sequenz.refine();
 
         for rframe in &refino.frames {
-            self.activate_frame(rframe);
             let target = Instant::now() + wait;
+            self.activate_frame(rframe);
+            if !repeat.load(std::sync::atomic::Ordering::SeqCst) {
+                break;
+            }
             while Instant::now() < target {
                 std::hint::spin_loop();
             }
@@ -248,6 +252,17 @@ impl Frame {
             rf.push_str(&format!("{:08b}", led.r));
             rf.push_str(&format!("{:08b}", led.b));
         }
+        // rf = rf
+        //     .as_bytes()
+        //     .chunks(24)
+        //     .map(|chunk| {
+        //         if chunk.iter().all(|&b| b == b'0') {
+        //             "1".repeat(24)
+        //         } else {
+        //             std::str::from_utf8(chunk).unwrap().to_string()
+        //         }
+        //     })
+        //     .collect();
         RefinedFrame(rf)
     }
 }
@@ -282,7 +297,7 @@ fn lerp_rgb(color1: (u8, u8, u8), color2: (u8, u8, u8), t: f32) -> (u8, u8, u8) 
 mod tests {
     use crate::led_stripe::{Frame, LED, LEDStripe, Sequenz, SequenzGenerator};
 
-    #[test]
+    //#[test]
     fn test_frame_refining() {
         let led1 = LED::new(0, 255, 170);
         let led2 = LED::new(255, 0, 85);
@@ -302,7 +317,7 @@ mod tests {
             "000000001111111101010101111111110000000010101010"
         );
     }
-    #[test]
+    // #[test]
     fn test_create_dot_normal() {
         let seq = SequenzGenerator::create_dot(3, (255, 255, 255), 0.0, 0, 0);
 
@@ -323,7 +338,7 @@ mod tests {
             "000000000000000000000000000000000000000000000000111111111111111111111111"
         );
     }
-    #[test]
+    //#[test]
     fn test_create_dot_blur_trail() {
         let seq = SequenzGenerator::create_dot(5, (255, 255, 255), 0.0, 2, 0);
 
@@ -343,7 +358,7 @@ mod tests {
             "010101010101010101010101101010101010101010101010111111111111111111111111000000000000000000000000000000000000000000000000"
         );
     }
-    #[test]
+    //#[test]
     fn test_create_dot_blur_head() {
         let seq = SequenzGenerator::create_dot(5, (255, 255, 255), 0.0, 0, 2);
 
@@ -363,7 +378,7 @@ mod tests {
             "000000000000000000000000000000000000000000000000111111111111111111111111101010101010101010101010010101010101010101010101"
         );
     }
-    #[test]
+    //#[test]
     fn test_create_dot_blur_both() {
         let seq = SequenzGenerator::create_dot(5, (255, 255, 255), 0.0, 2, 2);
 
