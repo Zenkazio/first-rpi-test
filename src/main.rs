@@ -15,6 +15,7 @@ use axum::{
     response::Html,
     routing::{get, post},
 };
+
 use serde::Deserialize;
 use std::{
     error::Error,
@@ -24,12 +25,10 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-use tokio::{spawn, task::spawn_blocking};
+use tokio::task::spawn_blocking;
+use ws2818_rgb_led_spi_driver::{adapter_gen::WS28xxAdapter, adapter_spi::WS28xxSpiAdapter};
 
-use crate::{
-    led_stripe::{Frame, LED, LEDStripe, Sequenz},
-    pins::RED_LED,
-};
+use crate::{led_stripe::LEDStripe, pins::RED_LED};
 
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -78,6 +77,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // led_stripe.activate_sequenz(seq, Arc::new(AtomicBool::new(true)));
     // return Ok(());
 
+    // let mut pwm_pin = Pwm::with_frequency(
+    //     rppal::pwm::Channel::Pwm0,
+    //     0.25,
+    //     0.5,
+    //     rppal::pwm::Polarity::Normal,
+    //     true,
+    // )?;
+    {
+        let mut rgb_values = vec![];
+        // set first three pixels to bright red, bright green and bright blue
+        for _ in 0..50 {
+            rgb_values.push((255, 0, 0));
+            rgb_values.push((0, 255, 0));
+            rgb_values.push((0, 0, 255));
+        }
+
+        adapter.write_rgb(&rgb_values).unwrap();
+    }
+
     let shared_state = Arc::new(AppState {
         led_stripe: Arc::new(Mutex::new(led_stripe)),
         left_running: Arc::new(AtomicBool::new(false)),
@@ -114,16 +132,19 @@ async fn led_settings_handler(
     let led_repeat_copy = state.led_repeat.clone();
     let led_stipe_copy = state.led_stripe.clone();
     let led_thread_mutex_copy = state.led_thread_mutex.clone();
-    state.led_repeat.store(payload.repeat, Ordering::SeqCst);
-
-    spawn_blocking(async move || {
+    spawn_blocking(move || {
         println!("spawn thread");
+        led_repeat_copy.store(false, Ordering::SeqCst);
         let _guard = led_thread_mutex_copy.lock().unwrap();
         eprintln!("start work");
+        led_repeat_copy.store(payload.repeat, Ordering::SeqCst);
         let mut stripe = led_stipe_copy.lock().unwrap();
         use WorkMode::*;
         let seq = match payload.mode {
-            Static => stripe.create_static((payload.r, payload.g, payload.b)),
+            Static => {
+                led_repeat_copy.store(false, Ordering::SeqCst);
+                stripe.create_static((payload.r, payload.g, payload.b))
+            }
             Blink => stripe.create_blink((payload.r, payload.g, payload.b), payload.speed),
             Dot => stripe.create_dot((payload.r, payload.g, payload.b), payload.speed, 0, 0),
         };
