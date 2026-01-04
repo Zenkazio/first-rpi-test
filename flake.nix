@@ -39,6 +39,16 @@
         strictDeps = true;
         pname = "first-rpi-test";
         version = "1.0.0";
+
+        nativeBuildInputs = with pkgs; [
+          llvmPackages.llvm
+          llvmPackages.libclang
+          pkg-config
+          git
+        ];
+
+        LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+        LLVM_CONFIG_PATH = "${pkgs.llvmPackages.llvm.dev}/bin/llvm-config";
       };
 
       # 1. Nur Abhängigkeiten bauen (Caching-Layer)
@@ -103,8 +113,16 @@
           rustfmt
           clippy
           rust-analyzer
+
+          llvmPackages.llvm
+          llvmPackages.libclang
+          pkg-config
         ];
+
         RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
+
+        LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+        LLVM_CONFIG_PATH = "${pkgs.llvmPackages.llvm.dev}/bin/llvm-config";
       };
 
       apps.${system} = {
@@ -117,7 +135,7 @@
               TARGET_HOST="zenkazio@192.168.178.36"
               TARGET_PATH="/home/zenkazio/first-rpi-test"
               rsync -avc --delete result/aarch64/bin/first-rpi-test $TARGET_HOST:$TARGET_PATH
-              ssh "$TARGET_HOST" "sudo systemctl restart start-rpi-program.service"
+              ssh "$TARGET_HOST" "sudo systemctl restart rpi-program.service"
             ''
           );
         };
@@ -125,7 +143,7 @@
           type = "app";
           program = builtins.toString (
             pkgs.writeShellScript "stop-remote" ''
-              ssh "zenkazio@192.168.178.36" "sudo systemctl stop start-rpi-program.service"
+              ssh "zenkazio@192.168.178.36" "sudo systemctl stop rpi-program.service"
             ''
           );
         };

@@ -26,9 +26,8 @@ use std::{
     },
 };
 use tokio::task::spawn_blocking;
-use ws2818_rgb_led_spi_driver::{adapter_gen::WS28xxAdapter, adapter_spi::WS28xxSpiAdapter};
 
-use crate::{led_stripe::LEDStripe, pins::RED_LED};
+use crate::led_stripe::LEDStripe;
 
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -36,6 +35,7 @@ enum WorkMode {
     Static,
     Blink,
     Dot,
+    Custom,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -58,43 +58,7 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let mut led_stripe = LEDStripe::new(RED_LED, 150)?;
-    // let led1 = LED::new(255, 0, 0);
-    // let led2 = LED::new(0, 255, 0);
-    // let frame = Frame(vec![led1, led2]);
-    // let led1 = LED::new(255, 0, 0);
-    // let led2 = LED::new(0, 255, 0);
-    // let led3 = LED::new(0, 255, 0);
-    // let led4 = LED::new(0, 255, 0);
-    // let frame2 = Frame(vec![led2, led1, led3, led4]);
-    // let seq = Sequenz::new(vec![frame, frame2], 1.0);
-    // led_stripe.activate_sequenz(seq, Arc::new(AtomicBool::new(false)));
-    // let seq = led_stripe.create_static((255, 0, 0));
-    // led_stripe.activate_sequenz(seq, Arc::new(AtomicBool::new(false)));
-    // let seq = led_stripe.create_static((0, 255, 0));
-    // led_stripe.activate_sequenz(seq, Arc::new(AtomicBool::new(false)));
-    // let seq = led_stripe.create_dot((0, 255, 0), 8.0, 0, 0);
-    // led_stripe.activate_sequenz(seq, Arc::new(AtomicBool::new(true)));
-    // return Ok(());
-
-    // let mut pwm_pin = Pwm::with_frequency(
-    //     rppal::pwm::Channel::Pwm0,
-    //     0.25,
-    //     0.5,
-    //     rppal::pwm::Polarity::Normal,
-    //     true,
-    // )?;
-    {
-        let mut rgb_values = vec![];
-        // set first three pixels to bright red, bright green and bright blue
-        for _ in 0..50 {
-            rgb_values.push((255, 0, 0));
-            rgb_values.push((0, 255, 0));
-            rgb_values.push((0, 0, 255));
-        }
-
-        adapter.write_rgb(&rgb_values).unwrap();
-    }
+    let led_stripe = LEDStripe::new(150);
 
     let shared_state = Arc::new(AppState {
         led_stripe: Arc::new(Mutex::new(led_stripe)),
@@ -147,6 +111,7 @@ async fn led_settings_handler(
             }
             Blink => stripe.create_blink((payload.r, payload.g, payload.b), payload.speed),
             Dot => stripe.create_dot((payload.r, payload.g, payload.b), payload.speed, 0, 0),
+            Custom => stripe.custom(),
         };
         stripe.activate_sequenz(seq, led_repeat_copy);
         println!("end work");
