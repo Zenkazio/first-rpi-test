@@ -27,7 +27,7 @@ use std::{
 };
 use tokio::task::spawn_blocking;
 
-use crate::led_stripe::LEDStripe;
+use crate::{led_stripe::LEDStripe, stepper::Stepper};
 
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -54,11 +54,20 @@ struct AppState {
     right_running: Arc<AtomicBool>,
     led_repeat: Arc<AtomicBool>,
     led_thread_mutex: Arc<Mutex<()>>,
+
+    stepper: Arc<Mutex<Stepper>>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let led_stripe = LEDStripe::new(150);
+
+    let mut stepper = Stepper::new(17, 27, 22, 800)?;
+    stepper.set_rpm(400);
+
+    // stepper.turn_left(Arc::new(AtomicBool::new(true)));
+
+    // return Ok(());
 
     let shared_state = Arc::new(AppState {
         led_stripe: Arc::new(Mutex::new(led_stripe)),
@@ -66,6 +75,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         right_running: Arc::new(AtomicBool::new(false)),
         led_repeat: Arc::new(AtomicBool::new(false)),
         led_thread_mutex: Arc::new(Mutex::new(())),
+
+        stepper: Arc::new(Mutex::new(stepper)),
     });
 
     let app = Router::new()
@@ -131,6 +142,11 @@ async fn left_start_handler(State(state): State<Arc<AppState>>) -> &'static str 
         return "Motor läuft bereits";
     }
     state.left_running.store(true, Ordering::SeqCst);
+    let stepper_copy = state.stepper.clone();
+    let left_running_copy = state.left_running.clone();
+    spawn_blocking(move || {
+        stepper_copy.lock().unwrap().turn_left(left_running_copy);
+    });
     println!("Left Start");
     "Left Start"
 }
@@ -138,6 +154,11 @@ async fn right_start_handler(State(state): State<Arc<AppState>>) -> &'static str
     if state.left_running.load(Ordering::SeqCst) || state.right_running.load(Ordering::SeqCst) {
         return "Motor läuft bereits";
     }
+    let stepper_copy = state.stepper.clone();
+    let right_running_copy = state.right_running.clone();
+    spawn_blocking(move || {
+        stepper_copy.lock().unwrap().turn_right(right_running_copy);
+    });
     state.right_running.store(true, Ordering::SeqCst);
     println!("Right Start");
     "Right Start"
@@ -147,6 +168,7 @@ async fn left_stop_handler(State(state): State<Arc<AppState>>) -> &'static str {
         return "Left is stopped";
     }
     state.left_running.store(false, Ordering::SeqCst);
+    state.stepper.lock().unwrap().clear();
     println!("Left Stop");
     "Left Stop"
 }
@@ -155,6 +177,7 @@ async fn right_stop_handler(State(state): State<Arc<AppState>>) -> &'static str 
         return "Right is stopped";
     }
     state.right_running.store(false, Ordering::SeqCst);
+    state.stepper.lock().unwrap().clear();
     println!("Right Stop");
     "Right Stop"
 }

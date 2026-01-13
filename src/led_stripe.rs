@@ -1,4 +1,4 @@
-//#![allow(unused)]
+#![allow(unused)]
 
 use std::{
     ops::{Add, Div, Shl, Shr},
@@ -150,8 +150,8 @@ impl SequenzGenerator {
         todo!()
     }
     pub fn custom(num_of_leds: usize) -> Sequenz {
-        let freq = 20.0;
-        let length = 20;
+        let freq = 30.0;
+        let length = 10;
         let mut green =
             SequenzGenerator::create_dot(num_of_leds, (0, 255, 0), freq, length, length);
         let mut red = SequenzGenerator::create_dot(num_of_leds, (255, 0, 0), freq, length, length);

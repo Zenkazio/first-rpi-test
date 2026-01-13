@@ -1,55 +1,79 @@
-#![allow(unused)]
+//#![allow(unused)]
 
-use std::{thread, time::Duration};
+const TIME_SLEEP: Duration = Duration::from_micros(20);
+const WARMUP_TIME: Duration = Duration::from_millis(1);
+const COOLDOWN_TIME: Duration = Duration::from_secs(2);
+
+use std::{
+    sync::{Arc, atomic::AtomicBool},
+    thread::{self, sleep},
+    time::Duration,
+};
 
 use rppal::gpio::{Error, Gpio, Level, OutputPin};
-const STEPS_PER_ROTATION: u16 = 512;
+
 pub struct Stepper {
-    int1: OutputPin,
-    int2: OutputPin,
-    int3: OutputPin,
-    int4: OutputPin,
-    phases: [[Level; 4]; 8],
+    ena: OutputPin,
+    dir: OutputPin,
+    step: OutputPin,
+    steps_per_rot: u32,
+    delay_time: Duration,
 }
 
 impl Stepper {
-    pub fn new(int1: u8, int2: u8, int3: u8, int4: u8) -> Result<Self, Error> {
+    pub fn new(ena: u8, dir: u8, step: u8, steps_per_rot: u32) -> Result<Self, Error> {
         Ok(Self {
-            int1: Gpio::new()?.get(int1)?.into_output_low(),
-            int2: Gpio::new()?.get(int2)?.into_output_low(),
-            int3: Gpio::new()?.get(int3)?.into_output_low(),
-            int4: Gpio::new()?.get(int4)?.into_output_low(),
-            phases: [
-                [Level::High, Level::Low, Level::Low, Level::High],
-                [Level::High, Level::Low, Level::Low, Level::Low],
-                [Level::High, Level::High, Level::Low, Level::Low],
-                [Level::Low, Level::High, Level::Low, Level::Low],
-                [Level::Low, Level::High, Level::High, Level::Low],
-                [Level::Low, Level::Low, Level::High, Level::Low],
-                [Level::Low, Level::Low, Level::High, Level::High],
-                [Level::Low, Level::Low, Level::Low, Level::High],
-            ],
+            ena: Gpio::new()?.get(ena)?.into_output_high(),
+            dir: Gpio::new()?.get(dir)?.into_output_low(),
+            step: Gpio::new()?.get(step)?.into_output_low(),
+            steps_per_rot: steps_per_rot,
+            delay_time: TIME_SLEEP,
         })
     }
-
-    pub fn one_step(&mut self) {
-        for s in self.phases {
-            self.int1.write(s[0]);
-            self.int2.write(s[1]);
-            self.int3.write(s[2]);
-            self.int4.write(s[3]);
-            thread::sleep(Duration::from_micros(1000));
-        }
+    pub fn turn_left(&mut self, left_running: Arc<AtomicBool>) {
+        self.turn(left_running);
     }
-    pub fn one_rotation(&mut self) {
-        for _ in 0..STEPS_PER_ROTATION {
+    pub fn turn_right(&mut self, right_running: Arc<AtomicBool>) {
+        self.dir.set_high();
+        self.turn(right_running);
+        self.dir.set_low();
+    }
+    fn turn(&mut self, running: Arc<AtomicBool>) {
+        self.warmup();
+
+        for _ in 0..1600 {
             self.one_step();
         }
+        // while running.load(std::sync::atomic::Ordering::SeqCst) {
+        //     self.step.set_high();
+        //     sleep(TIME_SLEEP);
+        //     self.step.set_low();
+        //     sleep(TIME_SLEEP);
+        // }
+        self.cooldown();
+    }
+
+    #[inline]
+    fn one_step(&mut self) {
+        self.step.set_high();
+        sleep(self.delay_time);
+        self.step.set_low();
+        sleep(self.delay_time);
+    }
+    fn warmup(&mut self) {
+        self.ena.set_low();
+        sleep(WARMUP_TIME);
+    }
+    fn cooldown(&mut self) {
+        sleep(COOLDOWN_TIME);
+        self.ena.set_high();
+    }
+    pub fn set_rpm(&mut self, rpm: u32) {
+        let hz = rpm * self.steps_per_rot / 60;
+        self.delay_time = Duration::from_secs_f32(1.0 / (2.0 * hz as f32))
     }
     pub fn clear(&mut self) {
-        self.int1.set_low();
-        self.int2.set_low();
-        self.int3.set_low();
-        self.int4.set_low();
+        self.dir.set_low();
+        self.step.set_low();
     }
 }
