@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 use std::{
     ops::{Add, Div, Shl, Shr},
     sync::{Arc, atomic::AtomicBool},
@@ -8,14 +6,17 @@ use std::{
 };
 
 use ws2818_rgb_led_spi_driver::{adapter_gen::WS28xxAdapter, adapter_spi::WS28xxSpiAdapter};
-unsafe impl Send for LEDStripe {}
-unsafe impl Sync for LEDStripe {}
-pub struct LEDStripe {
+
+use crate::led::sequence::Sequence;
+
+unsafe impl Send for Stripe {}
+unsafe impl Sync for Stripe {}
+pub struct Stripe {
     adapter: WS28xxSpiAdapter,
     number_of_leds: usize,
 }
 
-impl LEDStripe {
+impl Stripe {
     pub fn new(number_of_leds: usize) -> Self {
         if number_of_leds == 0 {
             panic!("number cannot be zero")
@@ -33,7 +34,7 @@ impl LEDStripe {
         }
         self.adapter.write_rgb(&v).unwrap();
     }
-    pub fn activate_sequenz(&mut self, sequenz: Sequenz, repeat: Arc<AtomicBool>) {
+    pub fn activate_sequenz(&mut self, sequenz: Sequence, repeat: Arc<AtomicBool>) {
         self.reset();
         let wait = Duration::from_secs_f32(1.0 / sequenz.framerate);
 
@@ -54,10 +55,10 @@ impl LEDStripe {
             }
         }
     }
-    pub fn create_static(&self, color: (u8, u8, u8)) -> Sequenz {
+    pub fn create_static(&self, color: (u8, u8, u8)) -> Sequence {
         SequenzGenerator::create_static(self.number_of_leds, color)
     }
-    pub fn create_blink(&self, color: (u8, u8, u8), frequenz: f32) -> Sequenz {
+    pub fn create_blink(&self, color: (u8, u8, u8), frequenz: f32) -> Sequence {
         SequenzGenerator::create_blink(self.number_of_leds, color, frequenz)
     }
     pub fn create_dot(
@@ -66,11 +67,15 @@ impl LEDStripe {
         frequenz: f32,
         blur_trail: usize,
         blur_head: usize,
-    ) -> Sequenz {
+    ) -> Sequence {
         SequenzGenerator::create_dot(self.number_of_leds, color, frequenz, blur_trail, blur_head)
     }
-    pub fn custom(&self) -> Sequenz {
+    pub fn custom(&self) -> Sequence {
         SequenzGenerator::custom(self.number_of_leds)
+    }
+
+    pub fn red_alert(&self) -> Sequence {
+        SequenzGenerator::red_alert(self.number_of_leds)
     }
 }
 
@@ -171,127 +176,29 @@ impl SequenzGenerator {
         cyan.reverse();
         green + red + blue + yellow + magenta + cyan
     }
-}
 
-pub struct Sequenz {
-    frames: Vec<Vec<(u8, u8, u8)>>,
-    framerate: f32,
-}
-
-impl Sequenz {
-    pub fn new(frames: Vec<Vec<(u8, u8, u8)>>, framerate: f32) -> Self {
-        if frames.len() == 0 {
-            panic!("empty frames");
-        }
-        Sequenz { frames, framerate }
-    }
-    pub fn reverse(&mut self) {
-        let mut rev = self.frames.clone();
-        rev.reverse();
-        self.frames = rev;
-    }
-    pub fn pulse(&self, steps: usize, lows: f32) -> Self {
-        todo!();
-        let range = 1.0 - lows;
-        let mut v = vec![];
-        for (i, frame) in self.frames.iter().enumerate() {
-            let indu = i % (steps + steps - 2);
-            if indu == 0 {
-                v.push(frame.clone());
-            } else if indu == steps - 1 {
+    pub fn red_alert(num_of_leds: usize) -> Sequenz {
+        let mut v = Vec::new();
+        for _ in 0..5 {
+            for _ in 0..10 {
+                v.push((0, 0, 0));
+            }
+            for _ in 0..10 {
+                v.push((255, 0, 0));
+            }
+            for _ in 0..10 {
+                v.push((0, 0, 0));
             }
         }
-        Sequenz {
-            frames: v,
-            framerate: self.framerate,
-        }
-    }
-    pub fn repeat(&self, num: usize) -> Self {
-        let mut v = vec![];
-        for _ in 0..num {
-            for frame in &self.frames {
-                v.push(frame.clone());
-            }
-        }
-
-        Self {
-            frames: v,
-            framerate: self.framerate,
-        }
+        Sequenz::new(vec![v], 0.5)
     }
 }
 
-impl Add for Sequenz {
-    type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output {
-        let first = self.frames;
-        let second = rhs.frames;
-        let slen = first.len().max(second.len());
-        let f1len = first.iter().map(|frame| frame.len()).max().unwrap_or(0);
-        let f2len = second.iter().map(|frame| frame.len()).max().unwrap_or(0);
-        let flen = f1len.max(f2len);
-        let mut v = vec![];
-        for i in 0..slen {
-            let mut new_frame = vec![];
-            for j in 0..flen {
-                let color_from_first = first
-                    .get(i)
-                    .and_then(|frame| frame.get(j))
-                    .unwrap_or(&(0, 0, 0));
-                let color_from_second = second
-                    .get(i)
-                    .and_then(|frame| frame.get(j))
-                    .unwrap_or(&(0, 0, 0));
-                new_frame.push(add_colors(color_from_first, color_from_second));
-            }
-            v.push(new_frame);
-        }
-        Sequenz::new(v, self.framerate.max(rhs.framerate))
-    }
-}
-impl Div for Sequenz {
-    type Output = Self;
-    fn div(self, rhs: Self) -> Self::Output {
-        todo!()
-    }
-}
-
-impl Shl<usize> for Sequenz {
-    type Output = Self;
-    fn shl(self, rhs: usize) -> Self::Output {
-        let len = self.frames.len();
-        let mut frs = self.frames;
-        frs.rotate_left(rhs % len);
-        Sequenz {
-            frames: frs,
-            framerate: self.framerate,
-        }
-    }
-}
-impl Shr<usize> for Sequenz {
-    type Output = Self;
-    fn shr(self, rhs: usize) -> Self::Output {
-        let len = self.frames.len();
-        let mut frs = self.frames;
-        frs.rotate_right(rhs % len);
-        Sequenz {
-            frames: frs,
-            framerate: self.framerate,
-        }
-    }
-}
 fn scale_color(color: &(u8, u8, u8), fac: f32) -> (u8, u8, u8) {
     (
         (color.0 as f32 * fac) as u8,
         (color.1 as f32 * fac) as u8,
         (color.2 as f32 * fac) as u8,
-    )
-}
-fn add_colors(color1: &(u8, u8, u8), color2: &(u8, u8, u8)) -> (u8, u8, u8) {
-    (
-        (color1.0 as u16 + color2.0 as u16).min(255) as u8,
-        (color1.1 as u16 + color2.1 as u16).min(255) as u8,
-        (color1.2 as u16 + color2.2 as u16).min(255) as u8,
     )
 }
 
