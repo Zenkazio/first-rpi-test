@@ -66,27 +66,43 @@ impl SequenzGenerator {
     pub fn custom(num_of_leds: usize) -> Sequence {
         let freq = 30.0;
         let length = 10;
-        let mut green =
-            SequenzGenerator::create_dot(num_of_leds, (0, 255, 0), freq, length, length);
+        let green = SequenzGenerator::create_dot(num_of_leds, (0, 255, 0), freq, length, length);
         let mut red = SequenzGenerator::create_dot(num_of_leds, (255, 0, 0), freq, length, length);
         red = red << 50;
         let mut blue = SequenzGenerator::create_dot(num_of_leds, (0, 0, 255), freq, length, length);
         blue = blue << 100;
         let mut yellow =
             SequenzGenerator::create_dot(num_of_leds, (255, 255, 0), freq, length, length);
-        yellow.reverse();
+        yellow = yellow.reverse();
         let mut magenta =
             SequenzGenerator::create_dot(num_of_leds, (255, 0, 255), freq, length, length);
         magenta = magenta << 50;
-        magenta.reverse();
+        magenta = magenta.reverse();
         let mut cyan =
             SequenzGenerator::create_dot(num_of_leds, (0, 255, 255), freq, length, length);
         cyan = cyan << 100;
-        cyan.reverse();
+        cyan = cyan.reverse();
         green + red + blue + yellow + magenta + cyan
     }
 
     pub fn red_alert(num_of_leds: usize) -> Sequence {
-        SequenzGenerator::create_dot(num_of_leds, (255, 0, 0), 20.0, 10, 10)
+        let seq = SequenzGenerator::create_dot(num_of_leds, (255, 0, 0), 20.0, 7, 7) >> 15;
+        let f1 = &seq.get_frames()[0];
+        let mut n = f1.add(&f1.shr(30));
+        n = n.add(&f1.shr(60));
+        n = n.add(&f1.shr(90));
+        n = n.add(&f1.shr(120));
+        // Sequence::new(vec![n], 20.0)
+        SequenzGenerator::create_scrolling_frame(num_of_leds, &n, 0.5)
+    }
+    pub fn create_scrolling_frame(num_of_leds: usize, frame: &Frame, framerate: f32) -> Sequence {
+        let mut v = Vec::new();
+        for i in 0..num_of_leds {
+            let mut t = frame.clone();
+            t = t.shr(i);
+            v.push(t);
+        }
+
+        Sequence::new(v, framerate)
     }
 }

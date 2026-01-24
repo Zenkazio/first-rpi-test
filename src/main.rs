@@ -2,7 +2,7 @@ mod distance;
 mod door_statemachine;
 mod i2c;
 mod keypad;
-mod led_stripe;
+mod led;
 mod pins;
 mod rgb_swappper;
 mod rgbled;
@@ -27,7 +27,7 @@ use std::{
 };
 use tokio::task::spawn_blocking;
 
-use crate::{led_stripe::LEDStripe, stepper::Stepper};
+use crate::{led::stripe::Stripe, stepper::Stepper};
 
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -49,7 +49,7 @@ struct Settings {
 }
 
 struct AppState {
-    led_stripe: Arc<Mutex<LEDStripe>>,
+    led_stripe: Arc<Mutex<Stripe>>,
     left_running: Arc<AtomicBool>,
     right_running: Arc<AtomicBool>,
     led_repeat: Arc<AtomicBool>,
@@ -60,10 +60,13 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let led_stripe = LEDStripe::new(150);
+    let t_bool = Arc::new(AtomicBool::new(true));
+    let mut led_stripe = Stripe::new(150);
 
-    let mut stepper = Stepper::new(17, 27, 22, 800)?;
-    stepper.set_rpm(400);
+    led_stripe.activate_sequenz(led_stripe.red_alert(), t_bool.clone());
+
+    let mut stepper = Stepper::new(17, 27, 22, 200)?;
+    stepper.set_rpm(800);
 
     // stepper.turn_left(Arc::new(AtomicBool::new(true)));
 
@@ -73,7 +76,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         led_stripe: Arc::new(Mutex::new(led_stripe)),
         left_running: Arc::new(AtomicBool::new(false)),
         right_running: Arc::new(AtomicBool::new(false)),
-        led_repeat: Arc::new(AtomicBool::new(false)),
+        led_repeat: t_bool,
         led_thread_mutex: Arc::new(Mutex::new(())),
 
         stepper: Arc::new(Mutex::new(stepper)),

@@ -1,4 +1,4 @@
-//#![allow(unused)]
+#![allow(unused)]
 
 const TIME_SLEEP: Duration = Duration::from_micros(20);
 const WARMUP_TIME: Duration = Duration::from_millis(1);
@@ -6,11 +6,11 @@ const COOLDOWN_TIME: Duration = Duration::from_secs(2);
 
 use std::{
     sync::{Arc, atomic::AtomicBool},
-    thread::{self, sleep},
+    thread::sleep,
     time::Duration,
 };
 
-use rppal::gpio::{Error, Gpio, Level, OutputPin};
+use rppal::gpio::{Error, Gpio, OutputPin};
 
 pub struct Stepper {
     ena: OutputPin,
@@ -41,16 +41,13 @@ impl Stepper {
     fn turn(&mut self, running: Arc<AtomicBool>) {
         self.warmup();
 
-        for _ in 0..1600 {
+        // for _ in 0..1600 {
+        //     self.one_step();
+        // }
+        while running.load(std::sync::atomic::Ordering::SeqCst) {
             self.one_step();
         }
-        // while running.load(std::sync::atomic::Ordering::SeqCst) {
-        //     self.step.set_high();
-        //     sleep(TIME_SLEEP);
-        //     self.step.set_low();
-        //     sleep(TIME_SLEEP);
-        // }
-        self.cooldown();
+        // self.cooldown();
     }
 
     #[inline]
