@@ -10,10 +10,12 @@ mod servo;
 mod stepper;
 use axum::{
     Json, Router,
+    body::Body,
     extract::{
         State, WebSocketUpgrade,
         ws::{Message, Utf8Bytes, WebSocket},
     },
+    http::{Response, StatusCode, header},
     response::{Html, IntoResponse},
     routing::{get, post},
 };
@@ -279,5 +281,26 @@ async fn counter_task(state: Arc<AppState>) {
         *counter += 1;
 
         let _ = state.tx.send(ServerMsg::CounterUpdate { value: *counter });
+    }
+}
+async fn static_handler(uri: axum::http::Uri) -> impl IntoResponse {
+    let path = uri.path().trim_start_matches('/');
+
+    let path = if path.is_empty() { "index.html" } else { path };
+
+    match ASSETS.get_file(path) {
+        Some(file) => {
+            let body = Body::from(file.contents());
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+
+            Response::builder()
+                .header(header::CONTENT_TYPE, mime.as_ref())
+                .body(body)
+                .unwrap()
+        }
+        None => Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Body::from("404"))
+            .unwrap(),
     }
 }
