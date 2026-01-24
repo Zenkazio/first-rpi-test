@@ -35,4 +35,11 @@ impl Frame {
         t.reverse();
         Frame(t)
     }
+    pub fn scale(&self, fac: f32) -> Self {
+        let mut v = Vec::new();
+        for led in &self.0 {
+            v.push(led.scale(fac));
+        }
+        Frame(v)
+    }
 }

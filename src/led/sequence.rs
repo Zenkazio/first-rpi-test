@@ -34,19 +34,28 @@ impl Sequence {
     }
 
     pub fn pulse(&self, steps: usize, lows: f32) -> Self {
-        todo!();
-        let range = 1.0 - lows;
+        // for smooth look have at least 30Hz
+        let seq = match self.framerate >= 30.0 {
+            true => self.clone(),
+            false => self.change_framerate(30.0),
+        };
+
         let mut v = vec![];
-        for (i, frame) in self.frames.iter().enumerate() {
-            let indu = i % (steps + steps - 2);
-            if indu == 0 {
-                v.push(frame.clone());
-            } else if indu == steps - 1 {
-            }
+
+        for (i, frame) in seq.get_frames().iter().enumerate() {
+            let current_phase = i % (2 * steps);
+            let step = match current_phase <= steps {
+                true => current_phase,
+                false => (2 * steps) - current_phase,
+            };
+            let fac = ((lows - 1.0) / steps as f32) * step as f32 + 1.0;
+            // dbg!(fac);
+            v.push(frame.scale(fac));
         }
+
         Sequence {
             frames: v,
-            framerate: self.framerate,
+            framerate: seq.framerate,
         }
     }
 

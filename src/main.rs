@@ -8,15 +8,19 @@ mod rgb_swappper;
 mod rgbled;
 mod servo;
 mod stepper;
-
 use axum::{
     Json, Router,
-    extract::State,
-    response::Html,
+    extract::{
+        State, WebSocketUpgrade,
+        ws::{Message, Utf8Bytes, WebSocket},
+    },
+    response::{Html, IntoResponse},
     routing::{get, post},
 };
+use futures::{SinkExt, StreamExt};
+use include_dir::{Dir, include_dir};
+use tower_http::services::ServeDir;
 
-use serde::Deserialize;
 use std::{
     error::Error,
     net::SocketAddr,
@@ -24,10 +28,30 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
+    time::Duration,
 };
-use tokio::task::spawn_blocking;
+use tokio::{sync::broadcast, task::spawn_blocking, time::sleep};
 
 use crate::{led::stripe::Stripe, stepper::Stepper};
+
+use serde::{Deserialize, Serialize};
+
+static ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets");
+
+#[derive(Serialize, Clone)]
+#[serde(tag = "type")]
+enum ServerMsg {
+    CounterUpdate { value: i32 },
+    PlaySound { name: String },
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "type")]
+enum ClientMsg {
+    Increment,
+    Decrement,
+    Reset,
+}
 
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -56,14 +80,26 @@ struct AppState {
     led_thread_mutex: Arc<Mutex<()>>,
 
     stepper: Arc<Mutex<Stepper>>,
+
+    counter: Arc<Mutex<i32>>,
+    tx: broadcast::Sender<ServerMsg>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let t_bool = Arc::new(AtomicBool::new(true));
-    let mut led_stripe = Stripe::new(150);
+    let (tx, _) = broadcast::channel(32);
 
-    led_stripe.activate_sequenz(led_stripe.red_alert(), t_bool.clone());
+    let t_bool = Arc::new(AtomicBool::new(true));
+    let led_stripe = Arc::new(Mutex::new(Stripe::new(150)));
+
+    let ld_c = led_stripe.clone();
+    let tboc = t_bool.clone();
+
+    spawn_blocking(move || {
+        let mut t = ld_c.lock().unwrap();
+        let s = t.red_alert();
+        t.activate_sequenz(s, tboc)
+    });
 
     let mut stepper = Stepper::new(17, 27, 22, 200)?;
     stepper.set_rpm(800);
@@ -73,16 +109,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // return Ok(());
 
     let shared_state = Arc::new(AppState {
-        led_stripe: Arc::new(Mutex::new(led_stripe)),
+        led_stripe: led_stripe,
         left_running: Arc::new(AtomicBool::new(false)),
         right_running: Arc::new(AtomicBool::new(false)),
         led_repeat: t_bool,
         led_thread_mutex: Arc::new(Mutex::new(())),
 
         stepper: Arc::new(Mutex::new(stepper)),
+
+        counter: Arc::new(Mutex::new(0)),
+        tx,
     });
 
+    tokio::spawn(counter_task(shared_state.clone()));
+
     let app = Router::new()
+        .route("/ws", get(ws_handler))
         .route("/", get(index_handler))
         .route("/led/reset", get(led_reset_handler))
         .route("/led/settings", post(led_settings_handler))
@@ -99,7 +141,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 async fn index_handler() -> Html<&'static str> {
-    Html(include_str!("../index.html"))
+    Html(include_str!("../index2.html"))
 }
 
 async fn led_settings_handler(
@@ -183,4 +225,59 @@ async fn right_stop_handler(State(state): State<Arc<AppState>>) -> &'static str 
     state.stepper.lock().unwrap().clear();
     println!("Right Stop");
     "Right Stop"
+}
+
+async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_socket(socket, state))
+}
+async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
+    let (mut sender, mut receiver) = socket.split();
+    let mut rx = state.tx.subscribe();
+
+    // Task: Server → Client
+    let send_task = tokio::spawn(async move {
+        while let Ok(msg) = rx.recv().await {
+            let text = serde_json::to_string(&msg).unwrap();
+            if sender
+                .send(Message::Text(Utf8Bytes::from(text)))
+                .await
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
+
+    // Client → Server
+    while let Some(Ok(Message::Text(text))) = receiver.next().await {
+        if let Ok(cmd) = serde_json::from_str::<ClientMsg>(&text) {
+            let mut counter = state.counter.lock().unwrap();
+
+            match cmd {
+                ClientMsg::Increment => *counter += 1,
+                ClientMsg::Decrement => *counter -= 1,
+                ClientMsg::Reset => *counter = 0,
+            }
+
+            let _ = state.tx.send(ServerMsg::CounterUpdate { value: *counter });
+
+            if matches!(cmd, ClientMsg::Reset) {
+                let _ = state.tx.send(ServerMsg::PlaySound {
+                    name: "reset.mp3".into(),
+                });
+            }
+        }
+    }
+
+    send_task.abort();
+}
+async fn counter_task(state: Arc<AppState>) {
+    loop {
+        sleep(Duration::from_secs(1)).await;
+
+        let mut counter = state.counter.lock().unwrap();
+        *counter += 1;
+
+        let _ = state.tx.send(ServerMsg::CounterUpdate { value: *counter });
+    }
 }

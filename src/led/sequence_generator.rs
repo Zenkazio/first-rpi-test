@@ -86,14 +86,19 @@ impl SequenzGenerator {
     }
 
     pub fn red_alert(num_of_leds: usize) -> Sequence {
-        let seq = SequenzGenerator::create_dot(num_of_leds, (255, 0, 0), 20.0, 7, 7) >> 15;
+        let length = 13;
+        let seq =
+            SequenzGenerator::create_dot(num_of_leds, (255, 0, 0), 20.0, length, length) >> 15;
         let f1 = &seq.get_frames()[0];
         let mut n = f1.add(&f1.shr(30));
         n = n.add(&f1.shr(60));
         n = n.add(&f1.shr(90));
         n = n.add(&f1.shr(120));
         // Sequence::new(vec![n], 20.0)
-        SequenzGenerator::create_scrolling_frame(num_of_leds, &n, 0.5)
+        //let s = SequenzGenerator::create_scrolling_frame(num_of_leds, &n, 15.0);
+        let s1 = Sequence::new(vec![n], 1.0);
+        let s = s1.repeat(150);
+        s.pulse(30, 0.2)
     }
     pub fn create_scrolling_frame(num_of_leds: usize, frame: &Frame, framerate: f32) -> Sequence {
         let mut v = Vec::new();
