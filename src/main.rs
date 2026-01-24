@@ -16,12 +16,11 @@ use axum::{
         ws::{Message, Utf8Bytes, WebSocket},
     },
     http::{Response, StatusCode, header},
-    response::{Html, IntoResponse},
+    response::IntoResponse,
     routing::{get, post},
 };
 use futures::{SinkExt, StreamExt};
 use include_dir::{Dir, include_dir};
-use tower_http::services::ServeDir;
 
 use std::{
     error::Error,
@@ -127,23 +126,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let app = Router::new()
         .route("/ws", get(ws_handler))
-        .route("/", get(index_handler))
         .route("/led/reset", get(led_reset_handler))
         .route("/led/settings", post(led_settings_handler))
         .route("/left/start", get(left_start_handler))
         .route("/left/stop", get(left_stop_handler))
         .route("/right/start", get(right_start_handler))
         .route("/right/stop", get(right_stop_handler))
+        .fallback(get(static_handler))
         .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 14444));
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
     Ok(())
-}
-
-async fn index_handler() -> Html<&'static str> {
-    Html(include_str!("../index2.html"))
 }
 
 async fn led_settings_handler(
@@ -283,9 +278,12 @@ async fn counter_task(state: Arc<AppState>) {
         let _ = state.tx.send(ServerMsg::CounterUpdate { value: *counter });
     }
 }
+
 async fn static_handler(uri: axum::http::Uri) -> impl IntoResponse {
+    // z.B. "/sounds/reset.mp3" -> "sounds/reset.mp3"
     let path = uri.path().trim_start_matches('/');
 
+    // "/" -> index.html
     let path = if path.is_empty() { "index.html" } else { path };
 
     match ASSETS.get_file(path) {
@@ -300,7 +298,7 @@ async fn static_handler(uri: axum::http::Uri) -> impl IntoResponse {
         }
         None => Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(Body::from("404"))
+            .body(Body::from(format!("File not found: {}", path)))
             .unwrap(),
     }
 }

@@ -1,5 +1,8 @@
 <!doctype html>
 <html>
+    <head>
+        <link rel="stylesheet" href="style.css" />
+    </head>
     <body>
         <h1>Counter: <span id="counter">0</span></h1>
 
@@ -7,7 +10,7 @@
         <button onclick="send('Decrement')">−</button>
         <button onclick="send('Reset')">Reset</button>
 
-        <audio id="player"></audio>
+        <audio id="player" preload="auto"></audio>
 
         <script>
             const ws = new WebSocket("ws://" + location.host + "/ws");

@@ -176,6 +176,7 @@ dependencies = [
  "axum",
  "futures",
  "include_dir",
+ "mime_guess",
  "rppal",
  "serde",
  "serde_json",

@@ -21,11 +21,13 @@
 
       # Crane Library initialisieren
       craneLib = crane.mkLib pkgs;
-
       htmlFilter =
         path: type:
-        (builtins.match ".*\\.html$" path != null)
+        # Alles im assets-Ordner erlauben
+        builtins.substring 0 (builtins.stringLength ./assets) path == ./assets
+        || (builtins.match ".*\\.html$" path != null)
         || (builtins.match ".*\\.css$" path != null)
+        || (builtins.match ".*\\.mp3$" path != null)
         || (craneLib.filterCargoSources path type);
 
       # Den Filter auf den Source anwenden
