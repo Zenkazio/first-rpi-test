@@ -10,13 +10,35 @@ body {
     color: white;
 }
 
-.container {
+.main-layout {
     display: flex;
-    width: 90%;
-    max-width: 500px;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: stretch; /* Sorgt dafür, dass alle Container im Desktop-Modus gleich hoch wirken */
+    width: 95%;
+    max-width: 1400px;
+    padding: 20px;
+}
+
+/* Die anderen Panel */
+.main-container {
+    flex: 1 1 350px;
+    max-width: 460px;
+    background: #333;
+    padding: 15px;
+    border-radius: 15px;
+    display: flex;
+    flex-direction: column;
     gap: 20px;
-    justify-content: space-between;
-    margin: 30px;
+    box-sizing: border-box;
+}
+
+.stepper {
+    flex-direction: row;
+    margin: 0;
+    /* Zentriert die Buttons vertikal, wenn der Container durch 'stretch' hochgezogen wird */
+    /*align-self: center;*/
 }
 
 button {
@@ -35,32 +57,18 @@ button {
     transition:
         transform 0.1s,
         opacity 0.1s;
+    background-color: #033f55;
+}
+button:active {
+    transform: scale(0.95);
 }
 
 .btn-left {
     background-color: #e74c3c;
-    transform: rotate(180deg);
-}
-.btn-left:active {
-    transform: rotate(180deg) scale(0.95);
 }
 
 .btn-right {
     background-color: #2ecc71;
-}
-.btn-right:active {
-    transform: scale(0.95);
-}
-
-.settings-panel {
-    width: 80%;
-    max-width: 460px;
-    background: #333;
-    padding: 25px;
-    border-radius: 15px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
 }
 
 .setting-item {
@@ -80,9 +88,43 @@ select {
 .save-btn {
     height: 50px;
     font-size: 1.2rem;
-    background-color: #033f55;
     margin-top: 10px;
 }
-.save-btn:active {
-    transform: scale(0.95);
+
+.main-container h1 {
+    margin: 0;
+    text-align: center;
+}
+
+.counter-controls {
+    display: flex;
+    gap: 15px;
+}
+
+.counter-controls button {
+    height: 60px;
+    font-size: 1.5rem;
+}
+
+/* Mobile Ansicht */
+@media (max-width: 800px) {
+    .main-layout {
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .main-container {
+        width: 100%;
+        max-width: 500px;
+        flex: none; /* Deaktiviert das Wachsen im vertikalen Modus */
+    }
+
+    .stepper {
+        height: auto; /* Container ist nur so hoch wie die Buttons */
+    }
+
+    button {
+        height: 100px; /* Optional: Buttons auf Handy etwas kompakter */
+    }
 }

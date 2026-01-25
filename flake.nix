@@ -28,6 +28,7 @@
         || (builtins.match ".*\\.html$" path != null)
         || (builtins.match ".*\\.css$" path != null)
         || (builtins.match ".*\\.mp3$" path != null)
+        || (builtins.match ".*\\.js$" path != null)
         || (craneLib.filterCargoSources path type);
 
       # Den Filter auf den Source anwenden

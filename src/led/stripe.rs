@@ -1,5 +1,8 @@
 use std::{
-    sync::{Arc, atomic::AtomicBool},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     thread::sleep,
     time::Duration,
 };
@@ -15,6 +18,7 @@ unsafe impl Sync for Stripe {}
 pub struct Stripe {
     adapter: WS28xxSpiAdapter,
     number_of_leds: usize,
+    running: Arc<AtomicBool>,
 }
 
 impl Stripe {
@@ -24,6 +28,7 @@ impl Stripe {
         Self {
             adapter: WS28xxSpiAdapter::new("/dev/spidev0.0").unwrap(),
             number_of_leds: number_of_leds,
+            running: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -34,7 +39,7 @@ impl Stripe {
         }
         self.adapter.write_rgb(&v).unwrap();
     }
-    pub fn activate_sequenz(&mut self, sequence: Sequence, repeat: Arc<AtomicBool>) {
+    pub fn activate_sequenz(&mut self, sequence: Sequence) {
         self.reset();
         let wait = Duration::from_secs_f32(1.0 / sequence.get_framerate());
 
@@ -45,21 +50,24 @@ impl Stripe {
                 .write_encoded_rgb(frame)
                 .expect("write encoded rgb");
             sleep(wait);
-            if !repeat.load(std::sync::atomic::Ordering::SeqCst) {
+            if !self.running.load(Ordering::SeqCst) {
                 break;
             }
         }
-        while repeat.load(std::sync::atomic::Ordering::SeqCst) {
+        while self.running.load(Ordering::SeqCst) {
             for frame in &rs {
                 self.adapter
                     .write_encoded_rgb(frame)
                     .expect("write encoded rgb");
                 sleep(wait);
-                if !repeat.load(std::sync::atomic::Ordering::SeqCst) {
+                if !self.running.load(Ordering::SeqCst) {
                     break;
                 }
             }
         }
+    }
+    pub fn get_running_clone(&self) -> Arc<AtomicBool> {
+        self.running.clone()
     }
 
     pub fn create_static(&self, color: (u8, u8, u8)) -> Sequence {

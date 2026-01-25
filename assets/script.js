@@ -30,17 +30,16 @@ function updatePreview() {
 
 function sendSettings() {
   const data = {
+    type: "UpdateSettings",
     r: parseInt(document.getElementById("rRange").value),
     g: parseInt(document.getElementById("gRange").value),
     b: parseInt(document.getElementById("bRange").value),
-    mode: document.getElementById("modeSelect").value,
+    mode: document.getElementById("modeSelect").value.toLowerCase(),
     speed: parseFloat(document.getElementById("speedInput").value),
     repeat: document.getElementById("repeatInput").checked,
   };
 
-  fetch("/led/settings", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  ws.send(JSON.stringify(data));
 }
+
+updatePreview();

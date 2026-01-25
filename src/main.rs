@@ -9,7 +9,7 @@ mod rgbled;
 mod servo;
 mod stepper;
 use axum::{
-    Json, Router,
+    Router,
     body::Body,
     extract::{
         State, WebSocketUpgrade,
@@ -17,7 +17,7 @@ use axum::{
     },
     http::{Response, StatusCode, header},
     response::IntoResponse,
-    routing::{get, post},
+    routing::get,
 };
 use futures::{SinkExt, StreamExt};
 use include_dir::{Dir, include_dir};
@@ -52,6 +52,16 @@ enum ClientMsg {
     Increment,
     Decrement,
     Reset,
+    UpdateSettings {
+        r: u8,
+        g: u8,
+        b: u8,
+        mode: WorkMode,
+        speed: f32,
+        repeat: bool,
+    },
+    RedAlert,
+    LEDReset,
 }
 
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq)]
@@ -61,16 +71,6 @@ enum WorkMode {
     Blink,
     Dot,
     Custom,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-struct Settings {
-    r: u8,
-    g: u8,
-    b: u8,
-    mode: WorkMode,
-    speed: f32,
-    repeat: bool,
 }
 
 struct AppState {
@@ -90,19 +90,11 @@ struct AppState {
 async fn main() -> Result<(), Box<dyn Error>> {
     let (tx, _) = broadcast::channel(32);
 
-    let t_bool = Arc::new(AtomicBool::new(true));
     let led_stripe = Arc::new(Mutex::new(Stripe::new(150)));
+    let t_bool = led_stripe.lock().unwrap().get_running_clone();
 
-    let ld_c = led_stripe.clone();
-    let tboc = t_bool.clone();
+    let mut stepper = Stepper::new(17, 27, 22, 800)?;
 
-    spawn_blocking(move || {
-        let mut t = ld_c.lock().unwrap();
-        let s = t.red_alert();
-        t.activate_sequenz(s, tboc)
-    });
-
-    let mut stepper = Stepper::new(17, 27, 22, 200)?;
     stepper.set_rpm(800);
 
     // stepper.turn_left(Arc::new(AtomicBool::new(true)));
@@ -126,8 +118,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let app = Router::new()
         .route("/ws", get(ws_handler))
-        .route("/led/reset", get(led_reset_handler))
-        .route("/led/settings", post(led_settings_handler))
         .route("/left/start", get(left_start_handler))
         .route("/left/stop", get(left_stop_handler))
         .route("/right/start", get(right_start_handler))
@@ -139,44 +129,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
     Ok(())
-}
-
-async fn led_settings_handler(
-    State(state): State<Arc<AppState>>,
-    Json(payload): Json<Settings>,
-) -> &'static str {
-    println!("Enter led settings");
-    let led_repeat_copy = state.led_repeat.clone();
-    let led_stipe_copy = state.led_stripe.clone();
-    let led_thread_mutex_copy = state.led_thread_mutex.clone();
-    spawn_blocking(move || {
-        println!("spawn thread");
-        led_repeat_copy.store(false, Ordering::SeqCst);
-        let _guard = led_thread_mutex_copy.lock().unwrap();
-        eprintln!("start work");
-        led_repeat_copy.store(payload.repeat, Ordering::SeqCst);
-        let mut stripe = led_stipe_copy.lock().unwrap();
-        use WorkMode::*;
-        let seq = match payload.mode {
-            Static => {
-                led_repeat_copy.store(false, Ordering::SeqCst);
-                stripe.create_static((payload.r, payload.g, payload.b))
-            }
-            Blink => stripe.create_blink((payload.r, payload.g, payload.b), payload.speed),
-            Dot => stripe.create_dot((payload.r, payload.g, payload.b), payload.speed, 0, 0),
-            Custom => stripe.custom(),
-        };
-        stripe.activate_sequenz(seq, led_repeat_copy);
-        println!("end work");
-    });
-    println!("New LED Stripe Data: {:?}", payload);
-    "Einstellungen gespeichert!"
-}
-async fn led_reset_handler(State(state): State<Arc<AppState>>) -> &'static str {
-    state.led_repeat.store(false, Ordering::SeqCst);
-    state.led_stripe.lock().unwrap().reset();
-    println!("Reset LEDStripe");
-    "Led Resetted!"
 }
 
 async fn left_start_handler(State(state): State<Arc<AppState>>) -> &'static str {
@@ -251,22 +203,84 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
             let mut counter = state.counter.lock().unwrap();
 
             match cmd {
-                ClientMsg::Increment => *counter += 1,
-                ClientMsg::Decrement => *counter -= 1,
-                ClientMsg::Reset => *counter = 0,
-            }
-
-            let _ = state.tx.send(ServerMsg::CounterUpdate { value: *counter });
-
-            if matches!(cmd, ClientMsg::Reset) {
-                let _ = state.tx.send(ServerMsg::PlaySound {
-                    name: "reset.mp3".into(),
-                });
+                ClientMsg::Increment => {
+                    *counter += 1;
+                    let _ = state.tx.send(ServerMsg::CounterUpdate { value: *counter });
+                }
+                ClientMsg::Decrement => {
+                    *counter -= 1;
+                    let _ = state.tx.send(ServerMsg::CounterUpdate { value: *counter });
+                }
+                ClientMsg::Reset => {
+                    *counter = 0;
+                    let _ = state.tx.send(ServerMsg::CounterUpdate { value: *counter });
+                }
+                ClientMsg::UpdateSettings {
+                    r,
+                    g,
+                    b,
+                    mode,
+                    speed,
+                    repeat,
+                } => {
+                    println!("Enter led settings");
+                    let led_repeat_copy = state.led_repeat.clone();
+                    let led_stipe_copy = state.led_stripe.clone();
+                    let led_thread_mutex_copy = state.led_thread_mutex.clone();
+                    spawn_blocking(move || {
+                        println!("spawn thread");
+                        led_repeat_copy.store(false, Ordering::SeqCst);
+                        let _guard = led_thread_mutex_copy.lock().unwrap();
+                        eprintln!("start work");
+                        led_repeat_copy.store(repeat, Ordering::SeqCst);
+                        let mut stripe = led_stipe_copy.lock().unwrap();
+                        use WorkMode::*;
+                        let seq = match mode {
+                            Static => {
+                                led_repeat_copy.store(false, Ordering::SeqCst);
+                                stripe.create_static((r, g, b))
+                            }
+                            Blink => stripe.create_blink((r, g, b), speed),
+                            Dot => stripe.create_dot((r, g, b), speed, 0, 0),
+                            Custom => {
+                                led_repeat_copy.store(true, Ordering::SeqCst);
+                                stripe.custom()
+                            }
+                        };
+                        stripe.activate_sequenz(seq);
+                        println!("end work");
+                    });
+                    println!("New LED Stripe Data: {:?}\n{:?}", mode, speed);
+                }
+                ClientMsg::RedAlert => {
+                    let _ = state.tx.send(ServerMsg::PlaySound {
+                        name: "reset.mp3".into(),
+                    });
+                    red_alert(state.clone());
+                }
+                ClientMsg::LEDReset => {
+                    state.led_repeat.store(false, Ordering::SeqCst);
+                    state.led_stripe.lock().unwrap().reset();
+                    println!("Reset LEDStripe");
+                }
             }
         }
     }
 
     send_task.abort();
+}
+fn red_alert(state: Arc<AppState>) {
+    let led_repeat_copy = state.led_repeat.clone();
+    let led_stipe_copy = state.led_stripe.clone();
+    let led_thread_mutex_copy = state.led_thread_mutex.clone();
+    spawn_blocking(move || {
+        led_repeat_copy.store(false, Ordering::SeqCst);
+        let _guard = led_thread_mutex_copy.lock().unwrap();
+        led_repeat_copy.store(true, Ordering::SeqCst);
+        let mut t = led_stipe_copy.lock().unwrap();
+        let s = t.red_alert();
+        t.activate_sequenz(s)
+    });
 }
 async fn counter_task(state: Arc<AppState>) {
     loop {

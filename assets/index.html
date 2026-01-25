@@ -10,128 +10,121 @@
         <link rel="stylesheet" href="style.css" />
     </head>
     <body>
-        <div class="settings-panel">
-            <div
-                class="setting-item"
-                style="flex-direction: column; align-items: stretch; gap: 10px"
-            >
-                <div style="display: flex; justify-content: space-between">
-                    <span>RGB:</span>
-                    <span id="previewText">R:255 G:0 B:0</span>
-                    <div
-                        id="colorPreview"
-                        style="
-                            width: 30px;
-                            height: 30px;
-                            border-radius: 5px;
-                            background: #ff0000;
-                            border: 1px solid white;
-                        "
-                    ></div>
+        <div class="main-layout">
+            <div class="main-container">
+                <div
+                    class="setting-item"
+                    style="
+                        flex-direction: column;
+                        align-items: stretch;
+                        gap: 10px;
+                    "
+                >
+                    <div style="display: flex; justify-content: space-between">
+                        <span>RGB:</span>
+                        <span id="previewText">R:255 G:0 B:0</span>
+                        <div
+                            id="colorPreview"
+                            style="
+                                width: 30px;
+                                height: 30px;
+                                border-radius: 5px;
+                                background: #ff0000;
+                                border: 1px solid white;
+                            "
+                        ></div>
+                    </div>
+                    <input
+                        type="range"
+                        id="rRange"
+                        min="0"
+                        max="255"
+                        value="255"
+                        oninput="updatePreview()"
+                    />
+                    <input
+                        type="range"
+                        id="gRange"
+                        min="0"
+                        max="255"
+                        value="0"
+                        oninput="updatePreview()"
+                    />
+                    <input
+                        type="range"
+                        id="bRange"
+                        min="0"
+                        max="255"
+                        value="0"
+                        oninput="updatePreview()"
+                    />
                 </div>
-                <input
-                    type="range"
-                    id="rRange"
-                    min="0"
-                    max="255"
-                    value="255"
-                    oninput="updatePreview()"
-                />
-                <input
-                    type="range"
-                    id="gRange"
-                    min="0"
-                    max="255"
-                    value="0"
-                    oninput="updatePreview()"
-                />
-                <input
-                    type="range"
-                    id="bRange"
-                    min="0"
-                    max="255"
-                    value="0"
-                    oninput="updatePreview()"
-                />
+
+                <div class="setting-item">
+                    <label for="modeSelect">Modus</label>
+                    <select id="modeSelect">
+                        <option value="static">Static</option>
+                        <option value="blink">Blink</option>
+                        <option value="dot">Dot</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+
+                <div class="setting-item">
+                    <label for="speedInput">Geschwindigkeit(Hz)</label>
+                    <input
+                        type="number"
+                        id="speedInput"
+                        step="0.1"
+                        value="1.0"
+                        style="width: 80px"
+                    />
+                </div>
+                <div class="setting-item">
+                    <label for="repeatInput">Wiederholen</label>
+                    <input type="checkbox" id="repeatInput" checked />
+                </div>
+
+                <button class="save-btn" onclick="sendSettings()">
+                    Ausführen
+                </button>
+                <button class="save-btn" onclick="sendWs('LEDReset')">
+                    Reset
+                </button>
+            </div>
+            <div class="main-container stepper">
+                <button
+                    class="btn-left"
+                    onpointerdown="fetch('/left/start')"
+                    onpointerup="fetch('/left/stop')"
+                    onpointerleave="fetch('/left/stop')"
+                >
+                    <
+                </button>
+
+                <button
+                    class="btn-right"
+                    onpointerdown="fetch('/right/start')"
+                    onpointerup="fetch('/right/stop')"
+                    onpointerleave="fetch('/right/stop')"
+                >
+                    >
+                </button>
+            </div>
+            <div class="main-container">
+                <h1>Counter: <span id="counter">0</span></h1>
+                <div class="counter-controls">
+                    <button onclick="sendWs('Increment')">+</button>
+                    <button onclick="sendWs('Decrement')">−</button>
+                    <button onclick="sendWs('Reset')">Reset</button>
+                </div>
             </div>
 
-            <div class="setting-item">
-                <label for="modeSelect">Modus</label>
-                <select id="modeSelect">
-                    <option value="static">Static</option>
-                    <option value="blink">Blink</option>
-                    <option value="dot">Dot</option>
-                    <option value="custom">Custom</option>
-                </select>
+            <div class="main-container">
+                <button onclick="sendWs('RedAlert')">Red Alert</button>
+                <audio id="player" preload="auto"></audio>
             </div>
-
-            <div class="setting-item">
-                <label for="speedInput">Geschwindigkeit(Hz)</label>
-                <input
-                    type="number"
-                    id="speedInput"
-                    step="0.1"
-                    value="1.0"
-                    style="width: 80px"
-                />
-            </div>
-            <div class="setting-item">
-                <label for="repeatInput">Wiederholen</label>
-                <input type="checkbox" id="repeatInput" />
-            </div>
-
-            <button class="save-btn" onclick="sendSettings()">Ausführen</button>
-            <button class="save-btn" onclick="fetch('/led/reset')">
-                Reset
-            </button>
         </div>
-        <div class="container">
-            <button
-                class="btn-left"
-                onpointerdown="fetch('/left/start')"
-                onpointerup="fetch('/left/stop')"
-                onpointerleave="fetch('/left/stop')"
-            >
-                ➤
-            </button>
-
-            <button
-                class="btn-right"
-                onpointerdown="fetch('/right/start')"
-                onpointerup="fetch('/right/stop')"
-                onpointerleave="fetch('/right/stop')"
-            >
-                ➤
-            </button>
-        </div>
-        <script>
-            function updatePreview() {
-                const r = document.getElementById("rRange").value;
-                const g = document.getElementById("gRange").value;
-                const b = document.getElementById("bRange").value;
-                document.getElementById("colorPreview").style.backgroundColor =
-                    `rgb(${r},${g},${b})`;
-                document.getElementById("previewText").textContent =
-                    `R: ${r} G: ${g} B: ${b}`;
-            }
-            function sendSettings() {
-                const data = {
-                    r: parseInt(document.getElementById("rRange").value),
-                    g: parseInt(document.getElementById("gRange").value),
-                    b: parseInt(document.getElementById("bRange").value),
-                    mode: document.getElementById("modeSelect").value,
-                    speed: parseFloat(
-                        document.getElementById("speedInput").value,
-                    ),
-                    repeat: document.getElementById("repeatInput").checked,
-                };
-
-                fetch("/led/settings", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(data),
-                });
-            }
-        </script>
+        <script src="script.js"></script>
     </body>
 </html>
