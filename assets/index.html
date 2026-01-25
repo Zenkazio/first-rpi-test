@@ -11,6 +11,41 @@
     </head>
     <body>
         <div class="main-layout">
+            <div class="main-container stepper">
+                <button
+                    class="btn-left"
+                    onpointerdown="fetch('/left/start')"
+                    onpointerup="fetch('/left/stop')"
+                    onpointerleave="fetch('/left/stop')"
+                >
+                    <
+                </button>
+
+                <button
+                    class="btn-right"
+                    onpointerdown="fetch('/right/start')"
+                    onpointerup="fetch('/right/stop')"
+                    onpointerleave="fetch('/right/stop')"
+                >
+                    >
+                </button>
+            </div>
+            <div class="main-container">
+                <h1>Counter: <span id="counter">0</span></h1>
+                <div class="counter-controls">
+                    <button onclick="sendWs('Increment')">+</button>
+                    <button onclick="sendWs('Decrement')">−</button>
+                    <button onclick="sendWs('Reset')">Reset</button>
+                </div>
+            </div>
+
+            <div class="main-container">
+                <button class="red-alert" onclick="sendWs('RedAlert')">
+                    Red Alert
+                </button>
+                <audio id="player" preload="auto"></audio>
+            </div>
+
             <div class="main-container">
                 <div
                     class="setting-item"
@@ -91,38 +126,6 @@
                 <button class="save-btn" onclick="sendWs('LEDReset')">
                     Reset
                 </button>
-            </div>
-            <div class="main-container stepper">
-                <button
-                    class="btn-left"
-                    onpointerdown="fetch('/left/start')"
-                    onpointerup="fetch('/left/stop')"
-                    onpointerleave="fetch('/left/stop')"
-                >
-                    <
-                </button>
-
-                <button
-                    class="btn-right"
-                    onpointerdown="fetch('/right/start')"
-                    onpointerup="fetch('/right/stop')"
-                    onpointerleave="fetch('/right/stop')"
-                >
-                    >
-                </button>
-            </div>
-            <div class="main-container">
-                <h1>Counter: <span id="counter">0</span></h1>
-                <div class="counter-controls">
-                    <button onclick="sendWs('Increment')">+</button>
-                    <button onclick="sendWs('Decrement')">−</button>
-                    <button onclick="sendWs('Reset')">Reset</button>
-                </div>
-            </div>
-
-            <div class="main-container">
-                <button onclick="sendWs('RedAlert')">Red Alert</button>
-                <audio id="player" preload="auto"></audio>
             </div>
         </div>
         <script src="script.js"></script>

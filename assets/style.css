@@ -105,7 +105,9 @@ select {
     height: 60px;
     font-size: 1.5rem;
 }
-
+.red-alert {
+    background-color: #aa0000;
+}
 /* Mobile Ansicht */
 @media (max-width: 800px) {
     .main-layout {

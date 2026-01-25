@@ -253,9 +253,6 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                     println!("New LED Stripe Data: {:?}\n{:?}", mode, speed);
                 }
                 ClientMsg::RedAlert => {
-                    let _ = state.tx.send(ServerMsg::PlaySound {
-                        name: "reset.mp3".into(),
-                    });
                     red_alert(state.clone());
                 }
                 ClientMsg::LEDReset => {
@@ -270,6 +267,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     send_task.abort();
 }
 fn red_alert(state: Arc<AppState>) {
+    println!("red alert!");
+    let _ = state.tx.send(ServerMsg::PlaySound {
+        name: "reset.mp3".into(),
+    });
     let led_repeat_copy = state.led_repeat.clone();
     let led_stipe_copy = state.led_stripe.clone();
     let led_thread_mutex_copy = state.led_thread_mutex.clone();
