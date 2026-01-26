@@ -11,7 +11,9 @@ use ws2818_rgb_led_spi_driver::{
     adapter_gen::WS28xxAdapter, adapter_spi::WS28xxSpiAdapter, encoding::encode_rgb,
 };
 
-use crate::led::{sequence::Sequence, sequence_generator::SequenzGenerator};
+use crate::led::{
+    frame::Frame, led::LED, sequence::Sequence, sequence_generator::SequenzGenerator,
+};
 
 unsafe impl Send for Stripe {}
 unsafe impl Sync for Stripe {}
@@ -66,6 +68,26 @@ impl Stripe {
             }
         }
     }
+    pub fn strength(&mut self, strength: f32, color: (u8, u8, u8)) -> Frame {
+        let fac = strength.clamp(0.0, 1.0);
+        let end = (self.number_of_leds as f32 * fac) as usize;
+        let mut v = Vec::new();
+        for i in 0..self.number_of_leds {
+            if i + 1 <= end {
+                v.push(LED::from_color(color));
+            } else {
+                v.push(LED::from_color((0, 0, 0)));
+            }
+        }
+        Frame(v)
+    }
+    pub fn activate_frame(&mut self, frame: &Frame) {
+        self.running.store(false, Ordering::SeqCst);
+        self.adapter
+            .write_rgb(&frame.to_vec())
+            .expect("in activate frame");
+    }
+
     pub fn get_running_clone(&self) -> Arc<AtomicBool> {
         self.running.clone()
     }

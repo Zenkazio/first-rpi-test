@@ -42,4 +42,11 @@ impl Frame {
         }
         Frame(v)
     }
+    pub fn to_vec(&self) -> Vec<(u8, u8, u8)> {
+        let mut v = Vec::new();
+        for led in &self.0 {
+            v.push(led.get_color());
+        }
+        v
+    }
 }

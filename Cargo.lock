@@ -177,6 +177,7 @@ dependencies = [
  "futures",
  "include_dir",
  "mime_guess",
+ "rand",
  "rppal",
  "serde",
  "serde_json",

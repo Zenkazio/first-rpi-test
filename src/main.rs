@@ -21,6 +21,7 @@ use axum::{
 };
 use futures::{SinkExt, StreamExt};
 use include_dir::{Dir, include_dir};
+use rand::Rng;
 
 use std::{
     error::Error,
@@ -92,7 +93,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let led_stripe = Arc::new(Mutex::new(Stripe::new(150)));
     let t_bool = led_stripe.lock().unwrap().get_running_clone();
-
+    {
+        let mut stripe = led_stripe.lock().unwrap();
+        let f1 = stripe.strength(rand::rng().random(), (255, 0, 0));
+        let f2 = stripe.strength(rand::rng().random(), (0, 255, 0));
+        let f3 = stripe.strength(rand::rng().random(), (0, 0, 255));
+        stripe.activate_frame(&f1.add(&f2).add(&f3));
+    }
     let mut stepper = Stepper::new(17, 27, 22, 800)?;
 
     stepper.set_rpm(800);
