@@ -13,6 +13,7 @@ use axum::{
     routing::get,
 };
 use futures::{SinkExt, StreamExt};
+use humanize_duration::prelude::DurationExt;
 use include_dir::{Dir, include_dir};
 use rand::Rng;
 
@@ -23,7 +24,7 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::{sync::broadcast, task::spawn_blocking, time::sleep};
 
@@ -36,16 +37,13 @@ static ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets");
 #[derive(Serialize, Clone)]
 #[serde(tag = "type")]
 enum ServerMsg {
-    CounterUpdate { value: i32 },
+    CounterUpdate { value: String },
     PlaySound { name: String },
 }
 
 #[derive(Deserialize)]
 #[serde(tag = "type")]
 enum ClientMsg {
-    Increment,
-    Decrement,
-    Reset,
     UpdateSettings {
         r: u8,
         g: u8,
@@ -76,7 +74,7 @@ struct AppState {
 
     stepper: Arc<Mutex<Stepper>>,
 
-    counter: Arc<Mutex<i32>>,
+    counter: Arc<Mutex<Instant>>,
     tx: broadcast::Sender<ServerMsg>,
 }
 
@@ -109,7 +107,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         stepper: Arc::new(Mutex::new(stepper)),
 
-        counter: Arc::new(Mutex::new(0)),
+        counter: Arc::new(Mutex::new(Instant::now())),
         tx,
     });
 
@@ -199,21 +197,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Client → Server
     while let Some(Ok(Message::Text(text))) = receiver.next().await {
         if let Ok(cmd) = serde_json::from_str::<ClientMsg>(&text) {
-            let mut counter = state.counter.lock().unwrap();
-
             match cmd {
-                ClientMsg::Increment => {
-                    *counter += 1;
-                    let _ = state.tx.send(ServerMsg::CounterUpdate { value: *counter });
-                }
-                ClientMsg::Decrement => {
-                    *counter -= 1;
-                    let _ = state.tx.send(ServerMsg::CounterUpdate { value: *counter });
-                }
-                ClientMsg::Reset => {
-                    *counter = 0;
-                    let _ = state.tx.send(ServerMsg::CounterUpdate { value: *counter });
-                }
                 ClientMsg::UpdateSettings {
                     r,
                     g,
@@ -286,10 +270,14 @@ async fn counter_task(state: Arc<AppState>) {
     loop {
         sleep(Duration::from_secs(1)).await;
 
-        let mut counter = state.counter.lock().unwrap();
-        *counter += 1;
+        let counter = state.counter.lock().unwrap();
 
-        let _ = state.tx.send(ServerMsg::CounterUpdate { value: *counter });
+        let _ = state.tx.send(ServerMsg::CounterUpdate {
+            value: counter
+                .elapsed()
+                .human(humanize_duration::Truncate::Second)
+                .to_string(),
+        });
     }
 }
 
