@@ -235,10 +235,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                     let led_stipe_copy = state.led_stripe.clone();
                     let led_thread_mutex_copy = state.led_thread_mutex.clone();
                     spawn_blocking(move || {
-                        println!("spawn thread");
+                        // println!("spawn thread");
                         led_repeat_copy.store(false, Ordering::SeqCst);
                         let _guard = led_thread_mutex_copy.lock().unwrap();
-                        eprintln!("start work");
+                        // eprintln!("start work");
                         led_repeat_copy.store(repeat, Ordering::SeqCst);
                         let mut stripe = led_stipe_copy.lock().unwrap();
                         use WorkMode::*;
@@ -255,9 +255,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                             }
                         };
                         stripe.activate_sequenz(seq);
-                        println!("end work");
+                        // println!("end work");
                     });
-                    println!("New LED Stripe Data: {:?}\n{:?}", mode, speed);
+                    // println!("New LED Stripe Data: {:?}\n{:?}", mode, speed);
                 }
                 ClientMsg::RedAlert => {
                     red_alert(state.clone());
