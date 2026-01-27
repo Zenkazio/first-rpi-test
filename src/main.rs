@@ -1,12 +1,5 @@
-mod distance;
 mod door_statemachine;
-mod i2c;
-mod keypad;
 mod led;
-mod pins;
-mod rgb_swappper;
-mod rgbled;
-mod servo;
 mod stepper;
 use axum::{
     Router,
