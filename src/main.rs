@@ -100,7 +100,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // stepper.turn_left(Arc::new(AtomicBool::new(true)));
 
     // return Ok(());
-
     let shared_state = Arc::new(AppState {
         led_stripe: led_stripe,
         left_running: Arc::new(AtomicBool::new(false)),
