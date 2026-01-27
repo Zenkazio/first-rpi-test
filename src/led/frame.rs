@@ -36,17 +36,9 @@ impl Frame {
         Frame(t)
     }
     pub fn scale(&self, fac: f32) -> Self {
-        let mut v = Vec::new();
-        for led in &self.0 {
-            v.push(led.scale(fac));
-        }
-        Frame(v)
+        Frame(self.0.iter().map(|led| led.scale(fac)).collect())
     }
     pub fn to_vec(&self) -> Vec<(u8, u8, u8)> {
-        let mut v = Vec::new();
-        for led in &self.0 {
-            v.push(led.get_color());
-        }
-        v
+        self.0.iter().map(|led| led.get_color()).collect()
     }
 }
