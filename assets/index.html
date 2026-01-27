@@ -14,29 +14,21 @@
             <div class="main-container stepper">
                 <button
                     class="btn-left"
-                    onpointerdown="fetch('/left/start')"
-                    onpointerup="fetch('/left/stop')"
-                    onpointerleave="fetch('/left/stop')"
+                    onpointerdown="sendWs('LeftStart')"
+                    onpointerup="sendWs('StepperStop')"
+                    onpointerleave="sendWs('StepperStop')"
                 >
                     <
                 </button>
 
                 <button
                     class="btn-right"
-                    onpointerdown="fetch('/right/start')"
-                    onpointerup="fetch('/right/stop')"
-                    onpointerleave="fetch('/right/stop')"
+                    onpointerdown="sendWs('RightStart')"
+                    onpointerup="sendWs('StepperStop')"
+                    onpointerleave="sendWs('StepperStop')"
                 >
                     >
                 </button>
-            </div>
-            <div class="main-container">
-                <h1>Counter: <span id="counter">0</span></h1>
-                <div class="counter-controls">
-                    <button onclick="sendWs('Increment')">+</button>
-                    <button onclick="sendWs('Decrement')">−</button>
-                    <button onclick="sendWs('Reset')">Reset</button>
-                </div>
             </div>
 
             <div class="main-container">
@@ -128,6 +120,8 @@
                 </button>
             </div>
         </div>
+        <div>Up for:</div>
+        <div id="status"></div>
         <script src="script.js"></script>
     </body>
 </html>

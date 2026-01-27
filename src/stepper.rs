@@ -25,6 +25,7 @@ pub struct Stepper {
     delay_time: Duration,
     tx: Sender<bool>,
     pwm_step: Pwm,
+    is_running: Arc<AtomicBool>,
 }
 
 impl Stepper {
@@ -40,6 +41,7 @@ impl Stepper {
             tx: Stepper::spawn_watchdof(a),
             pwm_step: Pwm::with_frequency(Channel::Pwm0, 200.0, 0.5, Polarity::Normal, false)
                 .unwrap(),
+            is_running: Arc::new(AtomicBool::new(false)),
         };
         Ok(t)
     }
@@ -71,15 +73,18 @@ impl Stepper {
         });
         tx
     }
-    pub fn turn_left(&mut self, left_running: Arc<AtomicBool>) {
-        self.turn(left_running);
+    pub fn get_running_clone(&self) -> Arc<AtomicBool> {
+        self.is_running.clone()
     }
-    pub fn turn_right(&mut self, right_running: Arc<AtomicBool>) {
-        self.dir.set_high();
-        self.turn(right_running);
+    pub fn turn_left(&mut self) {
         self.dir.set_low();
+        self.turn();
     }
-    fn turn(&mut self, running: Arc<AtomicBool>) {
+    pub fn turn_right(&mut self) {
+        self.dir.set_high();
+        self.turn();
+    }
+    fn turn(&mut self) {
         self.tx.send(true);
 
         let target_freq: f64 = 12800.0;
@@ -92,7 +97,7 @@ impl Stepper {
         let mut current_freq = start_freq;
 
         for _ in 0..steps {
-            if !running.load(Ordering::SeqCst) {
+            if !self.is_running.load(Ordering::SeqCst) {
                 break;
             }
             self.pwm_step.set_frequency(current_freq, 0.5);
@@ -103,7 +108,7 @@ impl Stepper {
 
         self.pwm_step.set_frequency(target_freq, 0.5);
         self.pwm_step.enable();
-        while running.load(Ordering::SeqCst) {
+        while self.is_running.load(Ordering::SeqCst) {
             sleep(TIME_SLEEP);
         }
         let mut current_freq = target_freq;
@@ -134,7 +139,7 @@ impl Stepper {
         self.delay_time = Duration::from_secs_f32(1.0 / (2.0 * hz as f32))
     }
     pub fn clear(&mut self) {
-        self.dir.set_low();
         self.step.set_low();
+        self.pwm_step.disable();
     }
 }

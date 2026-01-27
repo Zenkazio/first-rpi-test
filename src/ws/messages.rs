@@ -3,13 +3,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Clone)]
 #[serde(tag = "type")]
 pub enum ServerMsg {
-    CounterUpdate { value: String },
+    StatusUpdate { value: String },
     PlaySound { name: String },
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum ClientMsg {
+    LeftStart,
+    RightStart,
+    StepperStop,
     UpdateSettings {
         r: u8,
         g: u8,

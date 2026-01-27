@@ -12,7 +12,7 @@ pub async fn status_update(state: Arc<AppState>) {
     let start = Instant::now();
     loop {
         sleep(Duration::from_secs(1)).await;
-        let _ = state.tx.send(ServerMsg::CounterUpdate {
+        let _ = state.tx.send(ServerMsg::StatusUpdate {
             value: start
                 .elapsed()
                 .human(humanize_duration::Truncate::Second)

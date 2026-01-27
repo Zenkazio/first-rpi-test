@@ -3,8 +3,8 @@ const ws = new WebSocket("ws://" + location.host + "/ws");
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
 
-  if (msg.type === "CounterUpdate") {
-    document.getElementById("counter").textContent = msg.value;
+  if (msg.type === "StatusUpdate") {
+    document.getElementById("status").textContent = msg.value;
   }
 
   if (msg.type === "PlaySound") {
