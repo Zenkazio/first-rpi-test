@@ -150,9 +150,9 @@ fn playertable(p1: PlayerColors, p2: PlayerColors, p3: PlayerColors, state: Arc<
 
     for i in 0..stripe.get_number_of_leds() {
         v.push(match i {
-            30..50 => LED::from_color(p1.get_color()),
-            60..80 => LED::from_color(p2.get_color()),
-            120..130 => LED::from_color(p3.get_color()),
+            20..40 => LED::from_color(p1.get_color()),
+            45..65 => LED::from_color(p2.get_color()),
+            110..130 => LED::from_color(p3.get_color()),
             _ => LED(0, 0, 0),
         })
     }

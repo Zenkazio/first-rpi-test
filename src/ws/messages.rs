@@ -53,7 +53,7 @@ impl PlayerColors {
             PlayerColors::White => (255, 255, 255),
             PlayerColors::Green => (0, 255, 0),
             PlayerColors::Blue => (0, 0, 255),
-            PlayerColors::Orange => (255, 147, 15),
+            PlayerColors::Orange => (255, 30, 0),
         }
     }
 }
