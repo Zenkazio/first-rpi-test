@@ -33,6 +33,9 @@ impl Stripe {
             running: Arc::new(AtomicBool::new(false)),
         }
     }
+    pub fn get_number_of_leds(&self) -> usize {
+        self.number_of_leds
+    }
 
     pub fn reset(&mut self) {
         let mut v = vec![];

@@ -12,8 +12,9 @@ use futures::StreamExt;
 use tokio::task::spawn_blocking;
 
 use crate::{
+    led::{frame::Frame, led::LED},
     state::AppState,
-    ws::messages::{ClientMsg, ServerMsg, WorkMode},
+    ws::messages::{ClientMsg, PlayerColors, ServerMsg, WorkMode},
 };
 
 pub async fn ws_handler(
@@ -59,12 +60,14 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                     red_alert(state.clone());
                 }
                 ClientMsg::LEDReset => {
-                    state.led_repeat.store(false, Ordering::SeqCst); // darf nicht anders gemacht werden!! der stripe lock greift sonst nicht
-                    state.led_stripe.lock().unwrap().reset();
+                    led_reset(state.clone());
                 }
                 ClientMsg::LeftStart => start_stepper(state.clone(), true),
                 ClientMsg::RightStart => start_stepper(state.clone(), false),
                 ClientMsg::StepperStop => stop_stepper(state.clone()),
+                ClientMsg::PlayerTable { p1, p2, p3 } => {
+                    playertable(p1, p2, p3, state.clone());
+                }
             }
         }
     }
@@ -135,4 +138,23 @@ fn start_stepper(state: Arc<AppState>, left: bool) {
 fn stop_stepper(state: Arc<AppState>) {
     state.stepper_running.store(false, Ordering::SeqCst);
     state.stepper.lock().unwrap().clear();
+}
+fn led_reset(state: Arc<AppState>) {
+    state.led_repeat.store(false, Ordering::SeqCst); // darf nicht anders gemacht werden!! der stripe lock greift sonst nicht
+    state.led_stripe.lock().unwrap().reset();
+}
+fn playertable(p1: PlayerColors, p2: PlayerColors, p3: PlayerColors, state: Arc<AppState>) {
+    led_reset(state.clone());
+    let mut stripe = state.led_stripe.lock().unwrap();
+    let mut v = Vec::new();
+
+    for i in 0..stripe.get_number_of_leds() {
+        v.push(match i {
+            30..50 => LED::from_color(p1.get_color()),
+            60..80 => LED::from_color(p2.get_color()),
+            120..130 => LED::from_color(p3.get_color()),
+            _ => LED(0, 0, 0),
+        })
+    }
+    stripe.activate_frame(&Frame(v));
 }

@@ -41,5 +41,15 @@ function sendSettings() {
 
   ws.send(JSON.stringify(data));
 }
+function sendPlayerTable() {
+  const data = {
+    type: "PlayerTable",
+    p1: document.getElementById("p1Select").value,
+    p2: document.getElementById("p2Select").value,
+    p3: document.getElementById("p3Select").value,
+  };
+
+  ws.send(JSON.stringify(data));
+}
 
 updatePreview();
