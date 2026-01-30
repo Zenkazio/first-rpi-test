@@ -27,8 +27,20 @@ function updatePreview() {
   document.getElementById("previewText").textContent =
     `R: ${r} G: ${g} B: ${b}`;
 }
+function updateStepperPreview() {
+  const steps = document.getElementById("steppersteps").value;
 
-function sendSettings() {
+  document.getElementById("previewStepper").textContent = `Steps: ${steps}`;
+}
+function sendStepperStep() {
+  const data = {
+    type: "StepperStep",
+    step: document.getElementById("steppersteps").value,
+  };
+
+  ws.send(JSON.stringify(data));
+}
+function sendLEDSettings() {
   const data = {
     type: "UpdateSettings",
     r: parseInt(document.getElementById("rRange").value),
@@ -52,4 +64,5 @@ function sendPlayerTable() {
   ws.send(JSON.stringify(data));
 }
 
+updateStepperPreview();
 updatePreview();

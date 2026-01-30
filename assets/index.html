@@ -11,23 +11,21 @@
     </head>
     <body>
         <div class="main-layout">
-            <div class="main-container stepper">
-                <button
-                    class="btn-left"
-                    onpointerdown="sendWs('LeftStart')"
-                    onpointerup="sendWs('StepperStop')"
-                    onpointerleave="sendWs('StepperStop')"
-                >
-                    <
+            <div class="main-container">
+                <span id="previewStepper">Steps: 0</span>
+                <input
+                    type="range"
+                    id="steppersteps"
+                    min="-10000"
+                    max="10000"
+                    value="0"
+                    oninput="updateStepperPreview()"
+                />
+                <button class="save-btn" onclick="sendStepperStep()">
+                    Ausführen
                 </button>
-
-                <button
-                    class="btn-right"
-                    onpointerdown="sendWs('RightStart')"
-                    onpointerup="sendWs('StepperStop')"
-                    onpointerleave="sendWs('StepperStop')"
-                >
-                    >
+                <button class="save-btn" onclick="sendWs('StepperReset')">
+                    Reset
                 </button>
             </div>
 
@@ -133,7 +131,7 @@
                     <input type="checkbox" id="repeatInput" checked />
                 </div>
 
-                <button class="save-btn" onclick="sendSettings()">
+                <button class="save-btn" onclick="sendLEDSettings()">
                     Ausführen
                 </button>
                 <button class="save-btn" onclick="sendWs('LEDReset')">

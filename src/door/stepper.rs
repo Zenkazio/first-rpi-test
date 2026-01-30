@@ -9,7 +9,6 @@ const STARTUP_STEPS: i64 = 10000;
 use std::{
     sync::{
         Arc, Mutex,
-        atomic::AtomicBool,
         mpsc::{Sender, channel},
     },
     thread::{self, sleep},
@@ -22,23 +21,21 @@ pub struct Stepper {
     // ena: Arc<Mutex<OutputPin>>,
     dir: OutputPin,
     step: OutputPin,
-    steps_per_rot: u32,
+    // steps_per_rot: u32,
     tx: Sender<bool>,
-    is_running: Arc<AtomicBool>,
     step_counter: i64,
 }
 
 impl Stepper {
-    pub fn new(ena: u8, dir: u8, step: u8, steps_per_rot: u32) -> Result<Self, Error> {
+    pub fn new(ena: u8, dir: u8, step: u8) -> Result<Self, Error> {
         let a = Arc::new(Mutex::new(Gpio::new()?.get(ena)?.into_output_high()));
 
         let t = Self {
             // ena: a.clone(),
             dir: Gpio::new()?.get(dir)?.into_output_low(),
             step: Gpio::new()?.get(step)?.into_output_low(),
-            steps_per_rot: steps_per_rot,
+            // steps_per_rot: steps_per_rot,
             tx: Stepper::spawn_watchdog(a),
-            is_running: Arc::new(AtomicBool::new(false)),
             step_counter: 0,
         };
         Ok(t)
@@ -69,9 +66,6 @@ impl Stepper {
             }
         });
         tx
-    }
-    pub fn get_running_clone(&self) -> Arc<AtomicBool> {
-        self.is_running.clone()
     }
 
     pub fn turn_to(&mut self, to_step: i64) {
@@ -120,16 +114,7 @@ impl Stepper {
         self.tx.send(false).expect("send failed false");
         println!("step count{}", self.step_counter);
     }
-    pub fn turn_left(&mut self) {
-        self.turn_to(self.step_counter + 2 * (self.steps_per_rot as i64));
-    }
-    pub fn turn_right(&mut self) {
-        self.turn_to(self.step_counter + -2 * (self.steps_per_rot as i64));
-    }
 
-    pub fn clear(&mut self) {
-        self.step.set_low();
-    }
     pub fn reset_step_count(&mut self) {
         self.step_counter = 0;
     }

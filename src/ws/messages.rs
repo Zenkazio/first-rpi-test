@@ -10,9 +10,10 @@ pub enum ServerMsg {
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum ClientMsg {
-    LeftStart,
-    RightStart,
-    StepperStop,
+    StepperReset,
+    StepperStep {
+        step: i64,
+    },
     UpdateSettings {
         r: u8,
         g: u8,

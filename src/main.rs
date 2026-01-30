@@ -36,8 +36,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let f3 = stripe.strength(rand::rng().random(), (0, 0, 255));
         stripe.activate_frame(&f1.add(&f2).add(&f3));
     }
-    let stepper = Stepper::new(17, 27, 22, 800)?;
-    let u_bool = stepper.get_running_clone();
+    let stepper = Stepper::new(17, 27, 22)?;
 
     let _ = Door::new();
 
@@ -45,7 +44,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         led_stripe: led_stripe,
         led_repeat: t_bool,
 
-        stepper_running: u_bool,
         stepper: Arc::new(Mutex::new(stepper)),
 
         tx,

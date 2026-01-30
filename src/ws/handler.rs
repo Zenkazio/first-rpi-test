@@ -62,12 +62,11 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                 ClientMsg::LEDReset => {
                     led_reset(state.clone());
                 }
-                ClientMsg::LeftStart => start_stepper(state.clone(), true),
-                ClientMsg::RightStart => start_stepper(state.clone(), false),
-                ClientMsg::StepperStop => stop_stepper(state.clone()),
                 ClientMsg::PlayerTable { p1, p2, p3 } => {
                     playertable(p1, p2, p3, state.clone());
                 }
+                ClientMsg::StepperReset => stepper_reset(state.clone()),
+                ClientMsg::StepperStep { step } => steppersteps(state.clone(), step),
             }
         }
     }
@@ -119,26 +118,7 @@ fn red_alert(state: Arc<AppState>) {
         t.activate_sequenz(s)
     });
 }
-fn start_stepper(state: Arc<AppState>, left: bool) {
-    if state.stepper_running.load(Ordering::SeqCst) {
-        return;
-    }
-    state.stepper_running.store(true, Ordering::SeqCst);
-    let stepper_copy = state.stepper.clone();
-    if left {
-        spawn_blocking(move || {
-            stepper_copy.lock().unwrap().turn_left();
-        });
-    } else {
-        spawn_blocking(move || {
-            stepper_copy.lock().unwrap().turn_right();
-        });
-    }
-}
-fn stop_stepper(state: Arc<AppState>) {
-    state.stepper_running.store(false, Ordering::SeqCst);
-    state.stepper.lock().unwrap().clear();
-}
+
 fn led_reset(state: Arc<AppState>) {
     state.led_repeat.store(false, Ordering::SeqCst); // darf nicht anders gemacht werden!! der stripe lock greift sonst nicht
     state.led_stripe.lock().unwrap().reset();
@@ -157,4 +137,11 @@ fn playertable(p1: PlayerColors, p2: PlayerColors, p3: PlayerColors, state: Arc<
         })
     }
     stripe.activate_frame(&Frame(v));
+}
+
+fn steppersteps(state: Arc<AppState>, steps: i64) {
+    state.stepper.lock().unwrap().turn_to(steps);
+}
+fn stepper_reset(state: Arc<AppState>) {
+    state.stepper.lock().unwrap().reset_step_count();
 }
