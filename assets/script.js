@@ -35,7 +35,7 @@ function updateStepperPreview() {
 function sendStepperStep() {
   const data = {
     type: "StepperStep",
-    step: document.getElementById("steppersteps").value,
+    step: parseInt(document.getElementById("steppersteps").value),
   };
 
   ws.send(JSON.stringify(data));

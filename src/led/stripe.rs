@@ -71,7 +71,7 @@ impl Stripe {
             }
         }
     }
-    pub fn strength(&mut self, strength: f32, color: (u8, u8, u8)) -> Frame {
+    pub fn strength(&self, strength: f32, color: (u8, u8, u8)) -> Frame {
         let fac = strength.clamp(0.0, 1.0);
         let end = (self.number_of_leds as f32 * fac) as usize;
         let mut v = Vec::new();

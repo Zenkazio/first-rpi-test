@@ -1,8 +1,8 @@
 const COOLDOWN_TIME: Duration = Duration::from_secs(1);
 
 const START_FREQUENCY: f64 = 200.0 * 2.0; // double to get 0.5 dutycycle
-const MAX_FREQUENCY: f64 = 12800.0 * 2.0;
-const STARTUP_STEPS: i64 = 10000;
+const MAX_FREQUENCY: f64 = 60000.0 * 2.0;
+const STARTUP_STEPS: i64 = 2500;
 
 use std::{
     sync::{
@@ -10,7 +10,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc::{Sender, channel},
     },
-    thread::{self, sleep},
+    thread::{self},
     time::Duration,
 };
 
@@ -41,6 +41,7 @@ impl Stepper {
         };
         Ok(t)
     }
+
     fn spawn_watchdog(ena_pin: Arc<Mutex<OutputPin>>) -> Sender<bool> {
         let (tx, rx) = channel();
 
@@ -79,51 +80,45 @@ impl Stepper {
         if do_steps == 0 {
             return;
         }
-        self.tx.send(true).expect("send failed true");
-        let m = (MAX_FREQUENCY - START_FREQUENCY) / STARTUP_STEPS as f64;
-        if do_steps > 0 {
-            self.dir.set_high();
-            for i in 0..do_steps_abs {
-                let step = i.min(do_steps_abs - i);
 
-                let freq = if step > STARTUP_STEPS {
-                    MAX_FREQUENCY
-                } else {
-                    step as f64 * m + START_FREQUENCY
-                };
-                let dur = Duration::from_secs_f64(1.0 / freq);
-                self.step.set_high();
-                sleep(dur);
-                self.step_counter += 1;
-                self.step.set_low();
-                sleep(dur);
-                if self.canceler.load(Ordering::SeqCst) {
-                    break;
-                }
-            }
+        let m = (MAX_FREQUENCY - START_FREQUENCY) / STARTUP_STEPS as f64;
+
+        let dir_positive = do_steps > 0;
+        let step_delta: i64 = do_steps.signum();
+
+        if dir_positive {
+            self.dir.set_high();
         } else {
             self.dir.set_low();
-            for i in 0..do_steps_abs {
-                let step = i.min(do_steps_abs - i);
+        }
+        let sleeper = spin_sleep::SpinSleeper::new(0);
+        self.tx.send(true).expect("send failed true");
+        for i in 0..do_steps_abs {
+            let step = i.min(do_steps_abs - i);
 
-                let freq = if step > STARTUP_STEPS {
-                    MAX_FREQUENCY
-                } else {
-                    step as f64 * m + START_FREQUENCY
-                };
-                let dur = Duration::from_secs_f64(1.0 / freq);
-                self.step.set_high();
-                sleep(dur);
-                self.step_counter -= 1;
-                self.step.set_low();
-                sleep(dur);
-                if self.canceler.load(Ordering::SeqCst) {
-                    break;
-                }
+            let freq = if step > STARTUP_STEPS {
+                MAX_FREQUENCY
+            } else {
+                step as f64 * m + START_FREQUENCY
+            };
+
+            let dur = Duration::from_secs_f64(1.0 / freq);
+
+            self.step.set_high();
+            sleeper.sleep(dur);
+
+            self.step_counter += step_delta;
+
+            self.step.set_low();
+            sleeper.sleep(dur);
+
+            if self.canceler.load(Ordering::SeqCst) {
+                break;
             }
         }
+
         self.tx.send(false).expect("send failed false");
-        println!("step count{}", self.step_counter);
+        println!("step count {}", self.step_counter);
     }
 
     pub fn reset_step_count(&mut self) {
