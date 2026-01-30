@@ -1,7 +1,6 @@
-mod door_statemachine;
+mod door;
 mod led;
 mod state;
-mod stepper;
 mod tasks;
 mod ws;
 
@@ -16,9 +15,10 @@ use std::{
 use tokio::sync::broadcast;
 
 use crate::{
+    door::statemachine::Door,
+    door::stepper::Stepper,
     led::stripe::Stripe,
     state::AppState,
-    stepper::Stepper,
     tasks::updater::status_update,
     ws::{handler::ws_handler, static_files::static_handler},
 };
@@ -36,10 +36,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let f3 = stripe.strength(rand::rng().random(), (0, 0, 255));
         stripe.activate_frame(&f1.add(&f2).add(&f3));
     }
-    let mut stepper = Stepper::new(17, 27, 22, 800)?;
+    let stepper = Stepper::new(17, 27, 22, 800)?;
     let u_bool = stepper.get_running_clone();
 
-    stepper.set_rpm(800);
+    let _ = Door::new();
 
     let state = Arc::new(AppState {
         led_stripe: led_stripe,

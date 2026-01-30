@@ -44,7 +44,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Client → Server
     while let Some(Ok(Message::Text(text))) = receiver.next().await {
         if let Ok(cmd) = serde_json::from_str::<ClientMsg>(&text) {
-            println!("ClientMsg: {:?}", &cmd);
+            println!(": {:?}", &cmd);
             match cmd {
                 ClientMsg::UpdateSettings {
                     r,

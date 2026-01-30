@@ -1,8 +1,9 @@
 #![allow(unused)]
 
-const TIME_SLEEP: Duration = Duration::from_micros(20);
 const WARMUP_TIME: Duration = Duration::from_millis(10);
 const COOLDOWN_TIME: Duration = Duration::from_secs(1);
+
+const START_FREQUENCY: f64 = 200.0;
 
 use std::{
     sync::{
@@ -22,10 +23,9 @@ pub struct Stepper {
     dir: OutputPin,
     step: OutputPin,
     steps_per_rot: u32,
-    delay_time: Duration,
     tx: Sender<bool>,
-    pwm_step: Pwm,
     is_running: Arc<AtomicBool>,
+    step_counter: i64,
 }
 
 impl Stepper {
@@ -37,11 +37,9 @@ impl Stepper {
             dir: Gpio::new()?.get(dir)?.into_output_low(),
             step: Gpio::new()?.get(step)?.into_output_low(),
             steps_per_rot: steps_per_rot,
-            delay_time: TIME_SLEEP,
             tx: Stepper::spawn_watchdof(a),
-            pwm_step: Pwm::with_frequency(Channel::Pwm0, 200.0, 0.5, Polarity::Normal, false)
-                .unwrap(),
             is_running: Arc::new(AtomicBool::new(false)),
+            step_counter: 0,
         };
         Ok(t)
     }
@@ -76,70 +74,38 @@ impl Stepper {
     pub fn get_running_clone(&self) -> Arc<AtomicBool> {
         self.is_running.clone()
     }
-    pub fn turn_left(&mut self) {
-        self.dir.set_low();
-        self.turn();
-    }
-    pub fn turn_right(&mut self) {
-        self.dir.set_high();
-        self.turn();
-    }
-    fn turn(&mut self) {
+
+    pub fn turn_to(&mut self, to_step: i64) {
+        let do_steps = to_step - self.step_counter;
+        let do_steps_abs = do_steps.abs();
+        if do_steps == 0 {
+            return;
+        }
         self.tx.send(true);
-
-        let target_freq: f64 = 12800.0;
-        let start_freq = 200.0;
-        let steps = 100;
-        let ramp_duration = Duration::from_millis(500);
-        let step_delay = ramp_duration / steps;
-        let freq_increment = (target_freq - start_freq) / steps as f64;
-
-        let mut current_freq = start_freq;
-
-        for _ in 0..steps {
-            if !self.is_running.load(Ordering::SeqCst) {
-                break;
+        if do_steps > 0 {
+            self.dir.set_high();
+            for _ in 0..do_steps_abs {
+                self.step.set_high();
+                self.step_counter += 1;
+                self.step.set_low();
             }
-            self.pwm_step.set_frequency(current_freq, 0.5);
-            self.pwm_step.enable();
-            sleep(step_delay);
-            current_freq += freq_increment;
-        }
-
-        self.pwm_step.set_frequency(target_freq, 0.5);
-        self.pwm_step.enable();
-        while self.is_running.load(Ordering::SeqCst) {
-            sleep(TIME_SLEEP);
-        }
-        let mut current_freq = target_freq;
-
-        for _ in 0..steps {
-            current_freq -= freq_increment;
-            if current_freq < start_freq {
-                break;
+        } else {
+            self.dir.set_low();
+            for _ in 0..do_steps_abs {
+                self.step.set_high();
+                self.step_counter -= 1;
+                self.step.set_low();
             }
-            self.pwm_step.set_frequency(current_freq, 0.5);
-            sleep(step_delay);
         }
-
-        self.pwm_step.disable();
         self.tx.send(false);
     }
+    pub fn turn_left(&mut self) {}
+    pub fn turn_right(&mut self) {}
 
-    #[inline]
-    fn one_step(&mut self) {
-        self.step.set_high();
-        sleep(self.delay_time);
-        self.step.set_low();
-        sleep(self.delay_time);
-    }
-
-    pub fn set_rpm(&mut self, rpm: u32) {
-        let hz = rpm * self.steps_per_rot / 60;
-        self.delay_time = Duration::from_secs_f32(1.0 / (2.0 * hz as f32))
-    }
     pub fn clear(&mut self) {
         self.step.set_low();
-        self.pwm_step.disable();
+    }
+    pub fn reset_step_count(&mut self) {
+        self.step_counter = 0;
     }
 }
