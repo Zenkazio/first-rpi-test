@@ -1,14 +1,15 @@
-#![allow(unused)]
+// #![allow(unused)]
 
-const WARMUP_TIME: Duration = Duration::from_millis(10);
 const COOLDOWN_TIME: Duration = Duration::from_secs(1);
 
-const START_FREQUENCY: f64 = 200.0;
+const START_FREQUENCY: f64 = 200.0 * 2.0; // double to get 0.5 dutycycle
+const MAX_FREQUENCY: f64 = 12800.0 * 2.0;
+const STARTUP_STEPS: i64 = 10000;
 
 use std::{
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::AtomicBool,
         mpsc::{Sender, channel},
     },
     thread::{self, sleep},
@@ -16,10 +17,9 @@ use std::{
 };
 
 use rppal::gpio::{Error, Gpio, OutputPin};
-use rppal::pwm::{Channel, Polarity, Pwm};
 
 pub struct Stepper {
-    ena: Arc<Mutex<OutputPin>>,
+    // ena: Arc<Mutex<OutputPin>>,
     dir: OutputPin,
     step: OutputPin,
     steps_per_rot: u32,
@@ -33,17 +33,17 @@ impl Stepper {
         let a = Arc::new(Mutex::new(Gpio::new()?.get(ena)?.into_output_high()));
 
         let t = Self {
-            ena: a.clone(),
+            // ena: a.clone(),
             dir: Gpio::new()?.get(dir)?.into_output_low(),
             step: Gpio::new()?.get(step)?.into_output_low(),
             steps_per_rot: steps_per_rot,
-            tx: Stepper::spawn_watchdof(a),
+            tx: Stepper::spawn_watchdog(a),
             is_running: Arc::new(AtomicBool::new(false)),
             step_counter: 0,
         };
         Ok(t)
     }
-    fn spawn_watchdof(ena_pin: Arc<Mutex<OutputPin>>) -> Sender<bool> {
+    fn spawn_watchdog(ena_pin: Arc<Mutex<OutputPin>>) -> Sender<bool> {
         let (tx, rx) = channel();
 
         thread::spawn(move || {
@@ -55,7 +55,6 @@ impl Stepper {
                         if !ena_active {
                             ena_pin.lock().unwrap().set_low();
                             ena_active = true;
-                            sleep(WARMUP_TIME);
                         }
                     }
                     Ok(false) => {
@@ -81,26 +80,52 @@ impl Stepper {
         if do_steps == 0 {
             return;
         }
-        self.tx.send(true);
+        self.tx.send(true).expect("send failed true");
+        let m = (MAX_FREQUENCY - START_FREQUENCY) / STARTUP_STEPS as f64;
         if do_steps > 0 {
             self.dir.set_high();
-            for _ in 0..do_steps_abs {
+            for i in 0..do_steps_abs {
+                let step = i.min(do_steps_abs - i);
+
+                let freq = if step > STARTUP_STEPS {
+                    MAX_FREQUENCY
+                } else {
+                    step as f64 * m + START_FREQUENCY
+                };
+                let dur = Duration::from_secs_f64(1.0 / freq);
                 self.step.set_high();
+                sleep(dur);
                 self.step_counter += 1;
                 self.step.set_low();
+                sleep(dur);
             }
         } else {
             self.dir.set_low();
-            for _ in 0..do_steps_abs {
+            for i in 0..do_steps_abs {
+                let step = i.min(do_steps_abs - i);
+
+                let freq = if step > STARTUP_STEPS {
+                    MAX_FREQUENCY
+                } else {
+                    step as f64 * m + START_FREQUENCY
+                };
+                let dur = Duration::from_secs_f64(1.0 / freq);
                 self.step.set_high();
+                sleep(dur);
                 self.step_counter -= 1;
                 self.step.set_low();
+                sleep(dur);
             }
         }
-        self.tx.send(false);
+        self.tx.send(false).expect("send failed false");
+        println!("step count{}", self.step_counter);
     }
-    pub fn turn_left(&mut self) {}
-    pub fn turn_right(&mut self) {}
+    pub fn turn_left(&mut self) {
+        self.turn_to(self.step_counter + 2 * (self.steps_per_rot as i64));
+    }
+    pub fn turn_right(&mut self) {
+        self.turn_to(self.step_counter + -2 * (self.steps_per_rot as i64));
+    }
 
     pub fn clear(&mut self) {
         self.step.set_low();
