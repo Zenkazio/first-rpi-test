@@ -140,7 +140,12 @@ fn playertable(p1: PlayerColors, p2: PlayerColors, p3: PlayerColors, state: Arc<
 }
 
 fn steppersteps(state: Arc<AppState>, steps: i64) {
-    state.stepper.lock().unwrap().turn_to(steps);
+    let stepper_copy = state.stepper.clone();
+    state.stepper_cancler.store(true, Ordering::SeqCst);
+
+    spawn_blocking(move || {
+        stepper_copy.lock().unwrap().turn_to(steps);
+    });
 }
 fn stepper_reset(state: Arc<AppState>) {
     state.stepper.lock().unwrap().reset_step_count();

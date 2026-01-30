@@ -44,6 +44,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         led_stripe: led_stripe,
         led_repeat: t_bool,
 
+        stepper_cancler: stepper.get_cancler_clone(),
         stepper: Arc::new(Mutex::new(stepper)),
 
         tx,

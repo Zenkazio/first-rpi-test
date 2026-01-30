@@ -1,5 +1,3 @@
-// #![allow(unused)]
-
 const COOLDOWN_TIME: Duration = Duration::from_secs(1);
 
 const START_FREQUENCY: f64 = 200.0 * 2.0; // double to get 0.5 dutycycle
@@ -9,6 +7,7 @@ const STARTUP_STEPS: i64 = 10000;
 use std::{
     sync::{
         Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
         mpsc::{Sender, channel},
     },
     thread::{self, sleep},
@@ -24,6 +23,7 @@ pub struct Stepper {
     // steps_per_rot: u32,
     tx: Sender<bool>,
     step_counter: i64,
+    canceler: Arc<AtomicBool>,
 }
 
 impl Stepper {
@@ -37,6 +37,7 @@ impl Stepper {
             // steps_per_rot: steps_per_rot,
             tx: Stepper::spawn_watchdog(a),
             step_counter: 0,
+            canceler: Arc::new(AtomicBool::new(false)),
         };
         Ok(t)
     }
@@ -67,8 +68,12 @@ impl Stepper {
         });
         tx
     }
+    pub fn get_cancler_clone(&self) -> Arc<AtomicBool> {
+        self.canceler.clone()
+    }
 
     pub fn turn_to(&mut self, to_step: i64) {
+        self.canceler.store(false, Ordering::SeqCst);
         let do_steps = to_step - self.step_counter;
         let do_steps_abs = do_steps.abs();
         if do_steps == 0 {
@@ -92,6 +97,9 @@ impl Stepper {
                 self.step_counter += 1;
                 self.step.set_low();
                 sleep(dur);
+                if self.canceler.load(Ordering::SeqCst) {
+                    break;
+                }
             }
         } else {
             self.dir.set_low();
@@ -109,6 +117,9 @@ impl Stepper {
                 self.step_counter -= 1;
                 self.step.set_low();
                 sleep(dur);
+                if self.canceler.load(Ordering::SeqCst) {
+                    break;
+                }
             }
         }
         self.tx.send(false).expect("send failed false");
