@@ -67,6 +67,9 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
                 }
                 ClientMsg::StepperReset => stepper_reset(state.clone()),
                 ClientMsg::StepperStep { step } => steppersteps(state.clone(), step),
+
+                ClientMsg::OpenDoor => open_door(state.clone()),
+                ClientMsg::CloseDoor => close_door(state.clone()),
             }
         }
     }
@@ -138,15 +141,35 @@ fn playertable(p1: PlayerColors, p2: PlayerColors, p3: PlayerColors, state: Arc<
     }
     stripe.activate_frame(&Frame(v));
 }
-
+#[allow(unused)]
 fn steppersteps(state: Arc<AppState>, steps: i64) {
-    let stepper_copy = state.stepper.clone();
-    state.stepper_cancler.store(true, Ordering::SeqCst);
+    // let stepper_copy = state.stepper.clone();
+    // state.stepper_cancler.store(true, Ordering::SeqCst);
 
+    // spawn_blocking(move || {
+    //     stepper_copy.lock().unwrap().turn_to(steps);
+    // });
+}
+#[allow(unused)]
+fn stepper_reset(state: Arc<AppState>) {
+    // state.stepper.lock().unwrap().reset_step_count();
+}
+fn open_door(state: Arc<AppState>) {
+    state.door_cancler.store(true, Ordering::SeqCst);
+    let door_copy = state.door.clone();
     spawn_blocking(move || {
-        stepper_copy.lock().unwrap().turn_to(steps);
+        let mut door = door_copy.lock().unwrap();
+        door.get_cancler().store(false, Ordering::SeqCst);
+        door.process_event(crate::door::statemachine::Event::Open);
     });
 }
-fn stepper_reset(state: Arc<AppState>) {
-    state.stepper.lock().unwrap().reset_step_count();
+
+fn close_door(state: Arc<AppState>) {
+    state.door_cancler.store(true, Ordering::SeqCst);
+    let door_copy = state.door.clone();
+    spawn_blocking(move || {
+        let mut door = door_copy.lock().unwrap();
+        door.get_cancler().store(false, Ordering::SeqCst);
+        door.process_event(crate::door::statemachine::Event::Close);
+    });
 }

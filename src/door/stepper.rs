@@ -1,7 +1,7 @@
 const COOLDOWN_TIME: Duration = Duration::from_secs(1);
 
-const START_FREQUENCY: f64 = 200.0 * 2.0; // double to get 0.5 dutycycle
-const MAX_FREQUENCY: f64 = 60000.0 * 2.0;
+const START_FREQUENCY: f64 = 100.0 * 2.0; // double to get 0.5 dutycycle
+const MAX_FREQUENCY: f64 = 30000.0 * 2.0;
 const STARTUP_STEPS: i64 = 2500;
 
 use std::{
@@ -11,7 +11,7 @@ use std::{
         mpsc::{Sender, channel},
     },
     thread::{self},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use rppal::gpio::{Error, Gpio, OutputPin};
@@ -72,8 +72,12 @@ impl Stepper {
     pub fn get_cancler_clone(&self) -> Arc<AtomicBool> {
         self.canceler.clone()
     }
+    pub fn get_step_count(&self) -> i64 {
+        self.step_counter
+    }
 
     pub fn turn_to(&mut self, to_step: i64) {
+        let start = Instant::now();
         self.canceler.store(false, Ordering::SeqCst);
         let do_steps = to_step - self.step_counter;
         let do_steps_abs = do_steps.abs();
@@ -118,7 +122,7 @@ impl Stepper {
         }
 
         self.tx.send(false).expect("send failed false");
-        println!("step count {}", self.step_counter);
+        println!("time {}ms", start.elapsed().as_millis());
     }
 
     pub fn reset_step_count(&mut self) {

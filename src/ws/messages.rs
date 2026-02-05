@@ -10,6 +10,8 @@ pub enum ServerMsg {
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum ClientMsg {
+    OpenDoor,
+    CloseDoor,
     StepperReset,
     StepperStep {
         step: i64,

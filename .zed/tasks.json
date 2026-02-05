@@ -6,4 +6,11 @@
     "reveal": "no_focus",
     //"hide": "on_success"
   },
+  {
+    "label": "Push Script",
+    "command": "/home/zenkazio/Projects/first-rpi-test/push_script.sh",
+    "allow_concurrent_runs": true,
+    "reveal": "no_focus",
+    //"hide": "on_success"
+  },
 ]

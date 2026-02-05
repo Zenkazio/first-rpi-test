@@ -16,7 +16,6 @@ use tokio::sync::broadcast;
 
 use crate::{
     door::statemachine::Door,
-    door::stepper::Stepper,
     led::stripe::Stripe,
     state::AppState,
     tasks::updater::status_update,
@@ -36,16 +35,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let f3 = stripe.strength(rand::rng().random(), (0, 0, 255));
         stripe.activate_frame(&f1.add(&f2).add(&f3));
     }
-    let stepper = Stepper::new(17, 27, 22)?;
 
-    let _ = Door::new();
+    let d = Door::new();
 
     let state = Arc::new(AppState {
         led_stripe: led_stripe,
         led_repeat: t_bool,
 
-        stepper_cancler: stepper.get_cancler_clone(),
-        stepper: Arc::new(Mutex::new(stepper)),
+        door_cancler: d.get_cancler(),
+        door: Arc::new(Mutex::new(d)),
 
         tx,
     });

@@ -12,12 +12,21 @@
     <body>
         <div class="main-layout">
             <div class="main-container">
+                <button class="save-btn" onclick="sendWs('OpenDoor')">
+                    Öffnen
+                </button>
+                <button class="save-btn" onclick="sendWs('CloseDoor')">
+                    Schließen
+                </button>
+            </div>
+
+            <div class="main-container">
                 <span id="previewStepper">Steps: 0</span>
                 <input
                     type="range"
                     id="steppersteps"
-                    min="-20000"
-                    max="20000"
+                    min="0"
+                    max="10000"
                     value="0"
                     oninput="updateStepperPreview()"
                 />
