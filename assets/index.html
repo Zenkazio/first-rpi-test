@@ -21,24 +21,6 @@
             </div>
 
             <div class="main-container">
-                <span id="previewStepper">Steps: 0</span>
-                <input
-                    type="range"
-                    id="steppersteps"
-                    min="0"
-                    max="10000"
-                    value="0"
-                    oninput="updateStepperPreview()"
-                />
-                <button class="save-btn" onclick="sendStepperStep()">
-                    Ausführen
-                </button>
-                <button class="save-btn" onclick="sendWs('StepperReset')">
-                    Reset
-                </button>
-            </div>
-
-            <div class="main-container">
                 <button class="red-alert" onclick="sendWs('RedAlert')">
                     Red Alert
                 </button>
