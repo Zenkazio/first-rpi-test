@@ -1,8 +1,8 @@
 const COOLDOWN_TIME: Duration = Duration::from_secs(1);
 
-const START_FREQUENCY: f64 = 200.0 * 2.0; // double to get 0.5 dutycycle
-const MAX_FREQUENCY: f64 = 30000.0 * 2.0;
-const STARTUP_STEPS: i64 = 3500;
+const START_FREQUENCY: f64 = 100.0 * 2.0; // double to get 0.5 dutycycle
+const MAX_FREQUENCY: f64 = 15000.0 * 2.0;
+const STARTUP_STEPS: i64 = 1600;
 
 use std::{
     sync::{
@@ -18,8 +18,8 @@ use rppal::gpio::{Error, Gpio, OutputPin};
 
 pub struct Stepper {
     // ena: Arc<Mutex<OutputPin>>,
-    dir: OutputPin,
-    step: OutputPin,
+    pub dir: OutputPin,
+    pub step: OutputPin,
     // steps_per_rot: u32,
     tx: Sender<bool>,
     step_counter: i64,
