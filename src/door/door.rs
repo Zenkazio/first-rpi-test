@@ -1,11 +1,13 @@
-use std::{
-    sync::{Arc, atomic::AtomicBool},
-    time::Duration,
+use std::sync::{
+    Arc,
+    atomic::AtomicBool,
+    mpsc::{Sender, channel},
 };
 
 use rppal::gpio::{Gpio, InputPin};
+use tokio::task::spawn_blocking;
 
-use crate::door::stepper::Stepper;
+use crate::door::{detector::Detector, stepper::Stepper};
 
 #[derive(Debug)]
 enum State {
@@ -15,6 +17,7 @@ enum State {
     Closing,
     Holding,
 }
+#[derive(Debug)]
 pub enum Event {
     Open,
     Close,
@@ -28,8 +31,6 @@ pub struct Door {
     stepper: Stepper,
     stepper_cancler: Arc<AtomicBool>,
     close: InputPin,
-    detector_one: (),
-    detector_two: (),
 }
 impl Door {
     pub fn new() -> Self {
@@ -38,24 +39,18 @@ impl Door {
             state: State::Closed,
             stepper_cancler: lop.get_cancler_clone(),
             stepper: lop,
-            close: Gpio::new().unwrap().get(100).unwrap().into_input_pulldown(),
-            detector_one: (),
-            detector_two: (),
+            close: Gpio::new().unwrap().get(23).unwrap().into_input_pullup(),
         };
         t.calibrate();
         t
     }
     fn calibrate(&mut self) {
-        let sleeper = spin_sleep::SpinSleeper::new(0);
-        let dur = Duration::from_secs_f32(1.0 / 200.0);
-
-        self.stepper.dir.set_high();
-        while self.close.is_high() {
-            self.stepper.step.set_high();
-            sleeper.sleep(dur);
-
-            self.stepper.step.set_low();
-            sleeper.sleep(dur);
+        if self.close.is_low() {
+            println!("Start door calibration")
+        }
+        while self.close.is_low() {
+            // es ist low weil der schalter geschlossen ist und auf masse gezogen wird wenn die tür zu ist --> high
+            self.stepper.turn_to(self.stepper.get_step_count() - 10);
         }
         self.stepper.reset_step_count();
     }
@@ -83,10 +78,10 @@ impl Door {
     }
     fn open_door(&mut self) {
         self.state = State::Opening;
+        let open = 4400;
+        self.stepper.turn_to(open);
 
-        self.stepper.turn_to(10000);
-
-        if self.stepper.get_step_count() == 10000 {
+        if self.stepper.get_step_count() == open {
             self.process_event(Event::IsOpen);
         }
     }
@@ -99,4 +94,16 @@ impl Door {
             self.process_event(Event::IsClose);
         }
     }
+}
+pub fn start_door_controller(mut door: Door) -> Sender<Event> {
+    let (tx, rx) = channel::<Event>();
+
+    spawn_blocking(move || {
+        for event in rx {
+            println!("Doorevent: {:?}", &event);
+            door.process_event(event);
+        }
+    });
+
+    tx
 }
