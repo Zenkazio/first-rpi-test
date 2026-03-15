@@ -4,7 +4,7 @@ use std::{
         atomic::AtomicBool,
         mpsc::{Sender, channel},
     },
-    thread::{self, spawn},
+    thread::spawn,
     time::Duration,
 };
 
