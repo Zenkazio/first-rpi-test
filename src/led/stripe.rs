@@ -1,12 +1,15 @@
 use std::{
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
+        mpsc::{Sender, channel},
     },
-    thread::sleep,
+    thread::{sleep, spawn},
     time::Duration,
 };
 
+use serde::Deserialize;
+use tokio::task::spawn_blocking;
 use ws2818_rgb_led_spi_driver::{
     adapter_gen::WS28xxAdapter, adapter_spi::WS28xxSpiAdapter, encoding::encode_rgb,
 };
@@ -22,16 +25,43 @@ pub struct Stripe {
     number_of_leds: usize,
     running: Arc<AtomicBool>,
 }
-
+pub enum Event {
+    RedAlert,
+    PlayerTable {
+        p1: PlayerColors,
+        p2: PlayerColors,
+        p3: PlayerColors,
+    },
+}
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum PlayerColors {
+    White,
+    Green,
+    Blue,
+    Orange,
+}
+impl PlayerColors {
+    pub fn get_color(&self) -> (u8, u8, u8) {
+        match self {
+            PlayerColors::White => (255, 255, 255),
+            PlayerColors::Green => (0, 255, 0),
+            PlayerColors::Blue => (0, 0, 255),
+            PlayerColors::Orange => (255, 30, 0),
+        }
+    }
+}
 impl Stripe {
     pub fn new(number_of_leds: usize) -> Self {
         assert!(number_of_leds > 0);
 
-        Self {
+        let mut s = Self {
             adapter: WS28xxSpiAdapter::new("/dev/spidev0.0").unwrap(),
             number_of_leds: number_of_leds,
             running: Arc::new(AtomicBool::new(false)),
-        }
+        };
+        s.reset();
+        s
     }
     pub fn get_number_of_leds(&self) -> usize {
         self.number_of_leds
@@ -129,24 +159,29 @@ fn refine_sequence(seq: &Sequence) -> Vec<Vec<u8>> {
     }
     v
 }
-// #[cfg(test)]
-// #[test]
-// fn test_seq_shift() {
-//     let mut frame1 = vec![];
-//     frame1.push((255, 0, 0));
-//     frame1.push((0, 0, 255));
-//     let mut frame2 = vec![];
-//     frame2.push((0, 255, 0));
-//     frame2.push((0, 255, 0));
-//     let mut frame3 = vec![];
-//     frame3.push((0, 0, 255));
-//     frame3.push((255, 0, 0));
-//     let frames = vec![frame1, frame2, frame3];
-//     let s = Sequence::new(frames, 1.0);
-//     dbg!(&s.get_frames());
-//     let sl = s << 1;
-//     dbg!(&sl.get_frames());
-//     let sr = sl >> 1;
-//     dbg!(&sr.get_frames());
-//     assert!(true);
-// }
+pub fn start_stripe_controller(stripe: Stripe) -> Sender<Event> {
+    let (tx, rx) = channel::<Event>();
+    let running = stripe.get_running_clone();
+    let x = Arc::new(Mutex::new(stripe));
+    spawn(move || {
+        for event in rx {
+            let xx = x.clone();
+            let yy = running.clone();
+            spawn_blocking(move || {
+                yy.store(false, Ordering::SeqCst);
+                let mut strp = xx.lock().unwrap();
+                strp.reset();
+                match event {
+                    Event::RedAlert => {
+                        let t = strp.red_alert();
+                        yy.store(true, Ordering::SeqCst);
+                        strp.activate_sequenz(t);
+                    }
+                    _ => {}
+                }
+            });
+        }
+    });
+
+    tx
+}
