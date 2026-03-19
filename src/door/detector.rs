@@ -1,6 +1,6 @@
 use std::{f32::consts::PI, io::Read, os::unix::net::UnixStream, thread::spawn};
 
-const AVERAGE_SIZE: usize = 2;
+const AVERAGE_SIZE: usize = 1;
 
 #[derive(Debug, Default)]
 pub struct Target {
@@ -50,17 +50,19 @@ impl Target {
         self.speed
     }
     pub fn is_door_open(&self) -> bool {
-        calculate_angle(
+        let dis = calculate_vector_length(self.prev_point.0, self.prev_point.1);
+        let angle = calculate_angle(
             self.prev_point.0,
             self.prev_point.1,
             self.prev_vec.0,
             self.prev_vec.1,
-        ) >= 175.0
-            && calculate_vector_length(self.prev_point.0, self.prev_point.1) < 1500.0
-            && self.speed < -30
+        );
+        let m = 1.0 / 240.0;
+        let n = 167.0 + 11.0 / 12.0;
+        // linear function welche 175 auf 1700 und 170 auf 500 mapped
+        angle >= m * dis + n && dis < 1700.0 && self.speed < -30
     }
 }
-
 fn parse_ld2450_value(low: u8, high: u8) -> i16 {
     // 15-Bit Wert extrahieren, 16. Bit (0x80) ist das Vorzeichen
     let val = (((high & 0x7F) as i16) << 8) | (low as i16);
@@ -94,7 +96,7 @@ impl Detector {
                             let speed = parse_ld2450_value(buffer[offset + 4], buffer[offset + 5]);
                             let res =
                                 ((buffer[offset + 7] as u16) << 8) | (buffer[offset + 6] as u16);
-                            targets_array[i].update(-x, y, speed, res);
+                            targets_array[i].update(x, y, speed, res);
                         }
                     }
                 }

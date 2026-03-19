@@ -12,6 +12,7 @@ pub enum ServerMsg {
         name: String,
     },
     TargetPositions {
+        id: u8,
         pos1: (f32, f32),
         vec1: (f32, f32),
         done1: bool,

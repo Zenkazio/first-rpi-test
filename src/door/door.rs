@@ -4,7 +4,7 @@ use std::{
         atomic::AtomicBool,
         mpsc::{Sender, channel},
     },
-    thread::spawn,
+    thread::{sleep, spawn},
     time::Duration,
 };
 
@@ -50,15 +50,16 @@ impl Door {
         t
     }
     fn calibrate(&mut self) {
-        if self.close.is_low() {
-            println!("Start door calibration")
-        }
-        let blob = self.stepper.rot_ref(10, 800);
-        while self.close.is_low() {
-            // es ist low weil der schalter geschlossen ist und auf masse gezogen wird wenn die tür zu ist --> high
-            self.stepper.turn_to(self.stepper.get_step_count() - blob);
-        }
-        self.stepper.reset_step_count();
+        println!("Start door calibration");
+
+        self.stepper.turn_while(|| self.close.is_low(), -1);
+        self.stepper.turn_while(|| self.close.is_high(), 1);
+
+        sleep(Duration::from_millis(500));
+        self.stepper
+            .set_step_count(self.stepper.rot_ref(4698, 1600));
+        self.close_door();
+        println!("Finished door calibration");
     }
     pub fn get_cancler(&self) -> Arc<AtomicBool> {
         self.stepper_cancler.clone()
@@ -93,7 +94,7 @@ impl Door {
     }
     fn open_door(&mut self) {
         self.state = State::Opening;
-        let open = self.stepper.rot_ref(4500, 800);
+        let open = self.stepper.rot_ref(4300, 800);
         self.stepper.turn_to(open);
 
         if self.stepper.get_step_count() == open {

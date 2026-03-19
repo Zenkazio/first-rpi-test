@@ -37,7 +37,7 @@ impl Stepper {
             canceler: Arc::new(AtomicBool::new(false)),
             steps_per_rot: steps_per_rot,
             start_freq: 300.0 * 2.0, //* 2.0 to get 50% dutycycle in pwm
-            max_freq: 40000.0 * 2.0,
+            max_freq: 25000.0 * 2.0,
             startup_steps: 3000,
         };
         Ok(t)
@@ -82,7 +82,7 @@ impl Stepper {
     }
     pub fn turn_while<F>(&mut self, mut condition: F, steps: i64)
     where
-        F: FnMut() -> bool + Send + 'static,
+        F: FnMut() -> bool,
     {
         let dir_positive = steps > 0;
         let step_delta: i64 = steps.signum();
@@ -94,6 +94,7 @@ impl Stepper {
 
         let sleeper = spin_sleep::SpinSleeper::new(0);
         let dur = Duration::from_secs_f32(1.0 / self.start_freq);
+        self.tx.send(true).expect("send failed true");
         while condition() {
             self.step.set_high();
             sleeper.sleep(dur);
@@ -103,6 +104,7 @@ impl Stepper {
             self.step.set_low();
             sleeper.sleep(dur);
         }
+        self.tx.send(false).expect("send failed false");
     }
 
     pub fn turn_to(&mut self, to_step: i64) {
@@ -156,6 +158,9 @@ impl Stepper {
 
     pub fn reset_step_count(&mut self) {
         self.step_counter = 0;
+    }
+    pub fn set_step_count(&mut self, steps: i64) {
+        self.step_counter = steps;
     }
 }
 #[inline]
