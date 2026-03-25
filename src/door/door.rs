@@ -20,15 +20,18 @@ enum State {
     Opening,
     Closing,
     Holding,
+    Locked,
 }
 #[derive(Debug)]
 pub enum Event {
     Open,
     Close,
     Hold,
-    Unhold,
+    Release,
     IsOpen,
     IsClose,
+    Lock,
+    Unlock,
 }
 pub struct Door {
     state: State,
@@ -86,10 +89,12 @@ impl Door {
             // (Closing, Open) => self.open_door(),
             (Closing, IsOpen) => todo!(),
             (Closing, IsClose) => self.state = Closed,
-            (Holding, Unhold) => self.state = Opened,
+            (Holding, Release) => self.state = Opened,
             (_, Open) => {
                 self.send_open_signal();
             }
+            (Closed, Lock) => self.state = Locked,
+            (Locked, Unlock) => self.state = Closed,
             (_, _) => {}
         }
     }

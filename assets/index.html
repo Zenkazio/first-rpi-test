@@ -12,11 +12,19 @@
     <body>
         <div class="main-layout">
             <div class="main-container">
-                <button class="save-btn" onclick="fetch('/door/open')">
+                <button
+                    onclick="
+                        fetch('/door/open').then(() => fetch('/door/hold'))
+                    "
+                >
                     Open and Hold
                 </button>
-                <button class="save-btn" onclick="fetch('/door/close')">
-                    Unhold and Close
+                <button
+                    onclick="
+                        fetch('/door/release').then(() => fetch('/door/close'))
+                    "
+                >
+                    Release and Close
                 </button>
             </div>
 

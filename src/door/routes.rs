@@ -9,22 +9,26 @@ pub fn door_routes() -> Router<Arc<AppState>> {
         .route("/open", get(open))
         .route("/close", get(close))
         .route("/hold", get(hold))
-        .route("/unhold", get(unhold))
+        .route("/release", get(release))
+        .route("/lock", get(lock))
+        .route("/unlock", get(unlock))
 }
 
 async fn close(State(state): State<Arc<AppState>>) {
-    state.door.send(door::door::Event::Unhold).unwrap();
     state.door.send(door::door::Event::Close).unwrap();
 }
-
 async fn open(State(state): State<Arc<AppState>>) {
     state.door.send(door::door::Event::Open).unwrap();
-    state.door.send(door::door::Event::Hold).unwrap();
 }
-
 async fn hold(State(state): State<Arc<AppState>>) {
     state.door.send(door::door::Event::Hold).unwrap();
 }
-async fn unhold(State(state): State<Arc<AppState>>) {
-    state.door.send(door::door::Event::Unhold).unwrap();
+async fn release(State(state): State<Arc<AppState>>) {
+    state.door.send(door::door::Event::Release).unwrap();
+}
+async fn lock(State(state): State<Arc<AppState>>) {
+    state.door.send(door::door::Event::Lock).unwrap();
+}
+async fn unlock(State(state): State<Arc<AppState>>) {
+    state.door.send(door::door::Event::Unlock).unwrap();
 }
