@@ -12,6 +12,14 @@ use std::{
 
 use rppal::gpio::{Error, Gpio, OutputPin};
 
+pub enum PulsePerRotation {
+    PPR200,
+    PPR800,
+    PPR1600,
+    PPR3200,
+    PPR6400,
+}
+
 pub struct Stepper {
     // ena: Arc<Mutex<OutputPin>>,
     pub dir: OutputPin,
@@ -36,9 +44,9 @@ impl Stepper {
             step_counter: 0,
             canceler: Arc::new(AtomicBool::new(false)),
             steps_per_rot: steps_per_rot,
-            start_freq: 300.0 * 2.0, //* 2.0 to get 50% dutycycle in pwm
-            max_freq: 25000.0 * 2.0,
-            startup_steps: 3000,
+            start_freq: Stepper::rot_ref_base(300, 1600, steps_per_rot as i64) as f32,
+            max_freq: Stepper::rot_ref_base(25000, 1600, steps_per_rot as i64) as f32,
+            startup_steps: Stepper::rot_ref_base(3000, 1600, steps_per_rot as i64),
         };
         Ok(t)
     }
@@ -78,7 +86,10 @@ impl Stepper {
         self.step_counter
     }
     pub fn rot_ref(&self, steps: i64, base: i64) -> i64 {
-        steps * self.steps_per_rot as i64 / base
+        Stepper::rot_ref_base(steps, base, self.steps_per_rot as i64)
+    }
+    pub fn rot_ref_base(steps: i64, base: i64, referenz: i64) -> i64 {
+        steps * referenz / base
     }
     pub fn turn_while<F>(&mut self, mut condition: F, steps: i64)
     where
@@ -93,7 +104,9 @@ impl Stepper {
         }
 
         let sleeper = spin_sleep::SpinSleeper::new(0);
-        let dur = Duration::from_secs_f32(1.0 / self.start_freq);
+        let high = Duration::from_secs_f32(1.0 / self.start_freq);
+        // let low = Duration::from_secs()
+        let dur = Duration::from_secs_f32(1.0 / (self.start_freq * 2.0));
         self.tx.send(true).expect("send failed true");
         while condition() {
             self.step.set_high();
@@ -136,7 +149,7 @@ impl Stepper {
                 // logistic_growth(step, self.start_freq, self.max_freq, self.startup_steps)
             };
 
-            let dur = Duration::from_secs_f32(1.0 / freq);
+            let dur = Duration::from_secs_f32(1.0 / (freq * 2.0));
 
             self.step.set_high();
             sleeper.sleep(dur);

@@ -1,3 +1,4 @@
+const DOOR_COOLDOWN: Duration = Duration::from_secs(5);
 use std::{
     sync::{
         Arc,
@@ -57,7 +58,7 @@ impl Door {
 
         sleep(Duration::from_millis(500));
         self.stepper
-            .set_step_count(self.stepper.rot_ref(4698, 1600));
+            .set_step_count(self.stepper.rot_ref(4697, 1600));
         self.close_door();
         println!("Finished door calibration");
     }
@@ -128,11 +129,9 @@ pub fn start_door_controller(mut door: Door) -> Sender<Event> {
     door.set_watch_dog(btx);
 
     spawn(move || {
-        let timeout = Duration::from_secs(5);
-
         while brx.recv().is_ok() {
             loop {
-                match brx.recv_timeout(timeout) {
+                match brx.recv_timeout(DOOR_COOLDOWN) {
                     Ok(_) => continue,
                     Err(_) => {
                         let _ = tx_clone.send(Event::Close);

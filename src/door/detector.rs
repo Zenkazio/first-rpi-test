@@ -1,4 +1,14 @@
-use std::{f32::consts::PI, io::Read, os::unix::net::UnixStream, thread::spawn};
+use std::{
+    f32::consts::PI,
+    fs::{File, OpenOptions},
+    io::Read,
+    os::unix::net::UnixStream,
+    thread::spawn,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use csv::Writer;
+use serde::Serialize;
 
 const AVERAGE_SIZE: usize = 1;
 
@@ -57,10 +67,37 @@ impl Target {
             self.prev_vec.0,
             self.prev_vec.1,
         );
-        let m = 1.0 / 240.0;
-        let n = 167.0 + 11.0 / 12.0;
+        // let m = 1.0 / 240.0;
+        // let n = 167.0 + 11.0 / 12.0;
         // linear function welche 175 auf 1700 und 170 auf 500 mapped
-        angle >= m * dis + n && dis < 1700.0 && self.speed < -30
+        (angle >= 177.0 && dis < 1700.0 && self.speed < -30) || dis < 500.0
+    }
+}
+#[derive(Serialize)]
+pub struct Row {
+    timestamp: u128,
+    id: u8,
+    distance: f32,
+    speed: i16,
+    angle: f32,
+}
+impl Row {
+    pub fn new(target: &Target, id: u8) -> Self {
+        Self {
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis(),
+            id: id,
+            distance: calculate_vector_length(target.prev_point.0, target.prev_point.1),
+            speed: target.get_speed(),
+            angle: calculate_angle(
+                target.prev_point.0,
+                target.prev_point.1,
+                target.prev_vec.0,
+                target.prev_vec.1,
+            ),
+        }
     }
 }
 fn parse_ld2450_value(low: u8, high: u8) -> i16 {
@@ -74,11 +111,21 @@ pub struct Detector {}
 impl Detector {
     pub fn start<F>(uart_num: u8, mut callback: F)
     where
-        F: FnMut(&[Target]) + Send + 'static,
+        F: FnMut(&[Target], &mut Writer<File>) + Send + 'static,
     {
         let socket_path = format!("/tmp/ld2450_{}.sock", uart_num);
 
         spawn(move || {
+            let file = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open("data.csv")
+                .unwrap();
+
+            let mut wtr = csv::WriterBuilder::new()
+                .has_headers(file.metadata().unwrap().len() == 0)
+                .from_writer(file);
+
             let mut stream =
                 UnixStream::connect(socket_path).expect("Socket-Verbindung fehlgeschlagen");
             let mut buffer = [0u8; 30];
@@ -100,7 +147,7 @@ impl Detector {
                         }
                     }
                 }
-                callback(&targets_array);
+                callback(&targets_array, &mut wtr);
             }
         });
     }
