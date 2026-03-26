@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::{
     f32::consts::PI,
     fs::{File, OpenOptions},
@@ -10,96 +11,99 @@ use std::{
 use csv::Writer;
 use serde::Serialize;
 
-const AVERAGE_SIZE: usize = 1;
+const SIZE: usize = 3;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Clone)]
 pub struct Target {
-    x_values: [i16; AVERAGE_SIZE],
-    prev_x: [f32; AVERAGE_SIZE],
-    y_values: [i16; AVERAGE_SIZE],
-    prev_y: [f32; AVERAGE_SIZE],
+    points: [(i16, i16); SIZE],
+    vecs: [(i16, i16); SIZE],
     speed: i16,
     resolution: u16,
-    c: usize,
-    prev_point: (f32, f32),
-    prev_vec: (f32, f32),
+    done: bool,
 }
 impl Target {
     pub fn update(&mut self, x: i16, y: i16, speed: i16, resolution: u16) {
         self.speed = speed;
         self.resolution = resolution;
-        self.x_values[self.c] = x;
-        self.y_values[self.c] = y;
 
-        let sum_x: i16 = self.x_values.iter().sum();
-        let x = sum_x as f32 / AVERAGE_SIZE as f32;
-        let sum_y: i16 = self.y_values.iter().sum();
-        let y = sum_y as f32 / AVERAGE_SIZE as f32;
+        let (x1, y1) = self.points[0];
 
-        let prev_x = self.prev_x[self.c];
-        let prev_y = self.prev_y[self.c];
+        self.vecs.rotate_right(1);
+        self.vecs[0] = (x - x1, y - y1);
 
-        self.prev_x[self.c] = x;
-        self.prev_y[self.c] = y;
-
-        self.c = (self.c + 1) % AVERAGE_SIZE;
-
-        self.prev_point = (x, y);
-        self.prev_vec = (x - prev_x, y - prev_y)
+        self.points.rotate_right(1);
+        self.points[0] = (x, y)
     }
-    pub fn get_point(&self) -> (f32, f32) {
-        self.prev_point
+    pub fn get_point(&self) -> (i16, i16) {
+        self.points[0]
     }
-    pub fn get_vec(&self) -> (f32, f32) {
-        self.prev_vec
+    pub fn get_vec(&self) -> (i16, i16) {
+        self.vecs[0]
     }
     pub fn is_alive(&self) -> bool {
-        self.prev_point.0 != 0.0 || self.prev_point.1 != 0.0
+        self.points[0] != (0, 0) && self.speed != 0
     }
     pub fn get_speed(&self) -> i16 {
         self.speed
     }
-    pub fn is_door_open(&self) -> bool {
-        let dis = calculate_vector_length(self.prev_point.0, self.prev_point.1);
-        let angle = calculate_angle(
-            self.prev_point.0,
-            self.prev_point.1,
-            self.prev_vec.0,
-            self.prev_vec.1,
-        );
+    pub fn is_door_open(&mut self) -> bool {
+        let dis = Target::calculate_vector_length(self.points[0]);
+        let angle = Target::calculate_angle(self.points[0], self.vecs[0]);
+        let angle2 = Target::calculate_angle(self.points[1], self.vecs[1]);
         // let m = 1.0 / 240.0;
         // let n = 167.0 + 11.0 / 12.0;
         // linear function welche 175 auf 1700 und 170 auf 500 mapped
-        (angle >= 177.0 && dis < 1700.0 && self.speed < -30) || dis < 500.0
+        self.done = (angle >= 177.0 && angle2 >= 177.0 && dis < 1700.0) || dis < 500.0;
+        self.done
+    }
+    pub fn calculate_vector_length(vec: (i16, i16)) -> f32 {
+        let (x, y) = vec;
+        ((x as f32).powi(2) + (y as f32).powi(2)).sqrt()
+    }
+    pub fn calculate_angle(vec1: (i16, i16), vec2: (i16, i16)) -> f32 {
+        let (x1, y1) = vec1;
+        let (x2, y2) = vec2;
+        let dot_product = x1 as f32 * x2 as f32 + y1 as f32 * y2 as f32;
+
+        let mag1 = Target::calculate_vector_length(vec1);
+        let mag2 = Target::calculate_vector_length(vec2);
+
+        let cos_theta = dot_product / (mag1 * mag2);
+        let cos_theta = cos_theta.clamp(-1.0, 1.0);
+
+        let angle_radians = cos_theta.acos();
+        let angle_degrees = angle_radians * (180.0 / PI);
+
+        angle_degrees
     }
 }
-#[derive(Serialize)]
-pub struct Row {
-    timestamp: u128,
-    id: u8,
-    distance: f32,
-    speed: i16,
-    angle: f32,
-}
-impl Row {
-    pub fn new(target: &Target, id: u8) -> Self {
-        Self {
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis(),
-            id: id,
-            distance: calculate_vector_length(target.prev_point.0, target.prev_point.1),
-            speed: target.get_speed(),
-            angle: calculate_angle(
-                target.prev_point.0,
-                target.prev_point.1,
-                target.prev_vec.0,
-                target.prev_vec.1,
-            ),
-        }
-    }
-}
+// #[derive(Serialize)]
+// pub struct Row {
+//     timestamp: u128,
+//     id: u8,
+//     distance: f32,
+//     speed: i16,
+//     angle: f32,
+// }
+// impl Row {
+//     pub fn new(target: &Target, id: u8) -> Self {
+//         Self {
+//             timestamp: SystemTime::now()
+//                 .duration_since(UNIX_EPOCH)
+//                 .unwrap()
+//                 .as_millis(),
+//             id: id,
+//             distance: calculate_vector_length(target.prev_point.0, target.prev_point.1),
+//             speed: target.get_speed(),
+//             angle: calculate_angle(
+//                 target.prev_point.0,
+//                 target.prev_point.1,
+//                 target.prev_vec.0,
+//                 target.prev_vec.1,
+//             ),
+//         }
+//     }
+// }
 fn parse_ld2450_value(low: u8, high: u8) -> i16 {
     // 15-Bit Wert extrahieren, 16. Bit (0x80) ist das Vorzeichen
     let val = (((high & 0x7F) as i16) << 8) | (low as i16);
@@ -111,7 +115,7 @@ pub struct Detector {}
 impl Detector {
     pub fn start<F>(uart_num: u8, mut callback: F)
     where
-        F: FnMut(&[Target], &mut Writer<File>) + Send + 'static,
+        F: FnMut([Target; 3]) + Send + 'static,
     {
         let socket_path = format!("/tmp/ld2450_{}.sock", uart_num);
 
@@ -129,10 +133,8 @@ impl Detector {
             let mut stream =
                 UnixStream::connect(socket_path).expect("Socket-Verbindung fehlgeschlagen");
             let mut buffer = [0u8; 30];
-
             let mut targets_array: [Target; 3] =
                 [Target::default(), Target::default(), Target::default()];
-
             loop {
                 if stream.read_exact(&mut buffer).is_ok() {
                     if buffer[28] == 0x55 && buffer[29] == 0xCC {
@@ -147,30 +149,8 @@ impl Detector {
                         }
                     }
                 }
-                callback(&targets_array, &mut wtr);
+                callback(targets_array.clone());
             }
         });
     }
-}
-pub fn calculate_angle(vec1_x: f32, vec1_y: f32, vec2_x: f32, vec2_y: f32) -> f32 {
-    // Calculate the dot product
-    let dot_product = vec1_x * vec2_x + vec1_y * vec2_y;
-
-    // Calculate the magnitudes
-    let magnitude1 = (vec1_x.powi(2) + vec1_y.powi(2)).sqrt();
-    let magnitude2 = (vec2_x.powi(2) + vec2_y.powi(2)).sqrt();
-
-    // Calculate the cosine of the angle (with clamping to avoid numerical errors)
-    let cos_theta = dot_product / (magnitude1 * magnitude2);
-    let cos_theta = cos_theta.clamp(-1.0, 1.0); // Clamp for acos domain
-
-    // Convert the angle from radians to degrees
-    let angle_radians = cos_theta.acos();
-    let angle_degrees = angle_radians * (180.0 / PI);
-
-    angle_degrees
-}
-pub fn calculate_vector_length(x: f32, y: f32) -> f32 {
-    // Calculate the magnitude (length) of the vector
-    (x.powi(2) + y.powi(2)).sqrt()
 }

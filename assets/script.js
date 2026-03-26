@@ -1,4 +1,8 @@
 const ws = new WebSocket("ws://" + location.host + "/ws");
+const canvas = document.getElementById("myCanvas");
+const ctx = canvas.getContext("2d");
+const points = new Map();
+
 ws.addEventListener("close", (event) => {
   window.location.reload();
 });
@@ -18,36 +22,10 @@ ws.onmessage = (event) => {
     player.src = "/sounds/" + msg.name;
     player.play();
   }
-  if (msg.type === "TargetPositions") {
-    updatePoints(
-      [
-        {
-          x: msg.pos1[0], // x-Koordinate des ersten Tupels
-          y: msg.pos1[1],
-          vec_x: msg.vec1[0],
-          vec_y: msg.vec1[1],
-          done: msg.done1, // y-Koordinate des ersten Tupels
-          label: "1",
-        },
-        {
-          x: msg.pos2[0], // x-Koordinate des zweiten Tupels
-          y: msg.pos2[1], // y-Koordinate des zweiten Tupels
-          vec_x: msg.vec2[0],
-          vec_y: msg.vec2[1],
-          done: msg.done2,
-          label: "2",
-        },
-        {
-          x: msg.pos3[0], // x-Koordinate des dritten Tupels
-          y: msg.pos3[1], // y-Koordinate des dritten Tupels
-          vec_x: msg.vec3[0],
-          vec_y: msg.vec3[1],
-          done: msg.done3,
-          label: "3",
-        },
-      ],
-      msg.id,
-    );
+  if (msg.type === "Targets") {
+    points[msg.id] = msg.targets;
+    // console.log(points[3]);
+    drawCanvas();
   }
 };
 
@@ -96,10 +74,6 @@ function sendPlayerTable() {
 
   ws.send(JSON.stringify(data));
 }
-
-const canvas = document.getElementById("myCanvas");
-const ctx = canvas.getContext("2d");
-const points = new Map();
 
 function toCanvasCoords(x, y) {
   const maxCoord = 4000;
@@ -179,51 +153,45 @@ function drawCanvas() {
   // Punkte zeichnen
   for (const [id, points1] of Object.entries(points)) {
     points1.forEach((point) => {
-      if (point.x !== 0 || point.y !== 0) {
-        const length1 = Math.sqrt(point.x * point.x + point.y * point.y);
-        const angle = berechneWinkel(
-          point.x,
-          point.y,
-          point.vec_x,
-          point.vec_y,
-        );
-        const c3 = point.done ? "green" : id == 0 ? "blue" : "cyan";
+      if (point.points[0] !== (0, 0) && point.speed !== 0) {
+        const c3 = point.done ? "green" : id == 3 ? "blue" : "cyan";
         ctx.fillStyle = c3;
-        const coords = toCanvasCoords(point.x, point.y);
+        const coords = toCanvasCoords(point.points[0][0], point.points[0][1]);
 
         ctx.beginPath();
-        ctx.arc(coords.x, coords.y, 40, 0, Math.PI * 2);
+        ctx.arc(coords.x, coords.y, 20, 0, Math.PI * 2);
         ctx.fill();
         ctx.font = "bold 14px Arial"; // Fett, 14px, Schriftart Arial
         ctx.fillStyle = "black";
-        ctx.fillText(
-          `${point.label} (${point.x.toFixed(1)}, ${point.y.toFixed(1)},${angle.toFixed(2)}, ${length1.toFixed(2)})`,
-          coords.x + 40,
-          coords.y,
-        );
+        // ctx.fillText(
+        //   `${point.label} (${point.x.toFixed(1)}, ${point.y.toFixed(1)},${angle.toFixed(2)}, ${length1.toFixed(2)})`,
+        //   coords.x + 40,
+        //   coords.y,
+        // );
 
-        const c1 = "red";
-        drawArrow(ctx, originX, originY, point.x, point.y, (color = c1), 50);
-        const c2 = "red";
-        drawArrow(
-          ctx,
-          coords.x,
-          coords.y,
-          point.vec_x,
-          point.vec_y,
-          (color = c2),
-          50,
-        );
-
-        ctx.fillStyle = "blue";
+        // const c1 = "red";
+        // drawArrow(
+        //   ctx,
+        //   originX,
+        //   originY,
+        //   point.points[0][0],
+        //   point.points[0][1],
+        //   (color = c1),
+        //   50,
+        // );
+        // const c2 = "red";
+        // drawArrow(
+        //   ctx,
+        //   coords.x,
+        //   coords.y,
+        //   point.vec_x,
+        //   point.vec_y,
+        //   (color = c2),
+        //   50,
+        // );
       }
     });
   }
-}
-
-function updatePoints(newPoints, id) {
-  points[id] = newPoints;
-  drawCanvas();
 }
 
 updatePreview();

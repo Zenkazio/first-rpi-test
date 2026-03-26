@@ -1,28 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-use crate::led::stripe::PlayerColors;
+use crate::{door::detector::Target, led::stripe::PlayerColors};
 
 #[derive(Serialize, Clone)]
 #[serde(tag = "type")]
 pub enum ServerMsg {
-    StatusUpdate {
-        value: String,
-    },
-    PlaySound {
-        name: String,
-    },
-    TargetPositions {
-        id: u8,
-        pos1: (f32, f32),
-        vec1: (f32, f32),
-        done1: bool,
-        pos2: (f32, f32),
-        vec2: (f32, f32),
-        done2: bool,
-        pos3: (f32, f32),
-        vec3: (f32, f32),
-        done3: bool,
-    },
+    StatusUpdate { value: String },
+    PlaySound { name: String },
+    Targets { id: u8, targets: [Target; 3] },
 }
 
 #[derive(Deserialize, Debug)]

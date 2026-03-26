@@ -104,7 +104,7 @@ impl Stepper {
         }
 
         let sleeper = spin_sleep::SpinSleeper::new(0);
-        let high = Duration::from_secs_f32(1.0 / self.start_freq);
+        // let high = Duration::from_secs_f32(1.0 / self.start_freq);
         // let low = Duration::from_secs()
         let dur = Duration::from_secs_f32(1.0 / (self.start_freq * 2.0));
         self.tx.send(true).expect("send failed true");
