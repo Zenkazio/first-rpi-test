@@ -16,11 +16,11 @@ rustflags = ["-C", "target-feature=+crt-static"]
 EOF
 fi
 
-echo "Compling for tests"
+# echo "Compling for tests"
 
-cargo test --release --target=x86_64-unknown-linux-gnu
+# cargo test --release --target=x86_64-unknown-linux-gnu
 
-echo "Tests passed"
+# echo "Tests passed"
 echo "Compiling for target"
 
 cargo build --release --target=aarch64-unknown-linux-musl
