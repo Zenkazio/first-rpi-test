@@ -1,37 +1,49 @@
-const ws = new WebSocket("ws://" + location.host + "/ws");
+let ws;
 const canvas = document.getElementById("myCanvas");
 const ctx = canvas.getContext("2d");
 const points = new Map();
 
-ws.addEventListener("close", (event) => {
-  window.location.reload();
-});
-ws.addEventListener("error", (event) => {
-  window.location.reload();
-});
+function connect() {
+  ws = new WebSocket("ws://" + location.host + "/ws");
 
-ws.onmessage = (event) => {
-  const msg = JSON.parse(event.data);
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
 
-  if (msg.type === "StatusUpdate") {
-    document.getElementById("status").textContent = msg.value;
-  }
+    if (msg.type === "StatusUpdate") {
+      document.getElementById("status").textContent = msg.value;
+    }
 
-  if (msg.type === "PlaySound") {
-    const player = document.getElementById("player");
-    player.src = "/sounds/" + msg.name;
-    player.play();
-  }
-  if (msg.type === "Targets") {
-    points[msg.id] = msg.targets;
-    // console.log(points[3]);
-    drawCanvas();
-  }
-};
+    if (msg.type === "PlaySound") {
+      const player = document.getElementById("player");
+      player.src = "/sounds/" + msg.name;
+      player.play();
+    }
+
+    if (msg.type === "Targets") {
+      points[msg.id] = msg.targets;
+      drawCanvas();
+    }
+  };
+
+  ws.onclose = () => {
+    console.log("Verbindung verloren. Erneuter Versuch in 5s...");
+    setTimeout(connect, 5000);
+  };
+
+  ws.onerror = (err) => {
+    ws.close();
+  };
+}
 
 function sendWs(type) {
-  ws.send(JSON.stringify({ type }));
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type }));
+  } else {
+    console.warn("WS nicht bereit. Nachricht verworfen.");
+  }
 }
+
+connect();
 
 function updatePreview() {
   const r = document.getElementById("rRange").value;
@@ -134,6 +146,32 @@ function berechneWinkel(vec1_x, vec1_y, vec2_x, vec2_y) {
 
   return winkelGrad;
 }
+function zeichneKegelZuPunkt(x1, y1, x2, y2, oeffnungGrad) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+
+  // Radius (Hypotenuse) berechnen
+  const radius = Math.sqrt(dx * dx + dy * dy);
+
+  // Mittelwinkel in Radiant berechnen
+  const mittelWinkel = Math.atan2(dy, dx);
+
+  // Halber Öffnungswinkel in Radiant
+  const halbOeffnungRad = (oeffnungGrad / 2) * (Math.PI / 180);
+
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.arc(
+    x1,
+    y1,
+    radius,
+    mittelWinkel - halbOeffnungRad,
+    mittelWinkel + halbOeffnungRad,
+  );
+  ctx.lineTo(x1, y1);
+  ctx.fill();
+  ctx.stroke();
+}
 function drawCanvas() {
   // Canvas leeren
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -141,20 +179,42 @@ function drawCanvas() {
   // Koordinatenursprung (roter Punkt)
   const originX = canvas.width / 2;
   const originY = canvas.height;
-  ctx.lineWidth = 4; // Dicke des Randes in Pixel
+
+  // 1. Die senkrechte Linie (z.B. 40px lang nach oben)
+  ctx.lineWidth = 2; // Dicke des Randes in Pixel
   ctx.strokeStyle = "black";
+  ctx.fillStyle = "black";
   ctx.beginPath();
-  ctx.arc(originX, originY, 375, 0, Math.PI * 2);
+  ctx.moveTo(originX, originY);
+  ctx.lineTo(originX, 0);
   ctx.stroke();
+
+  for (let i = 1; i <= 6; i++) {
+    let currentRadius = i * 125;
+    let label = (i * 0.5).toFixed(1) + "m";
+    let currentY = originY - currentRadius;
+
+    // 1. Kreis zeichnen (oder Halbkreis)
+    ctx.beginPath();
+    ctx.arc(originX, originY, currentRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 3. Text rechts neben der Markierung
+    ctx.font = "14px Arial";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, originX + 5, currentY - 10);
+  }
+
   ctx.fillStyle = "red";
   ctx.beginPath();
   ctx.arc(originX, originY, 8, 0, Math.PI * 2);
   ctx.fill();
   // Punkte zeichnen
   for (const [id, points1] of Object.entries(points)) {
-    points1.forEach((point) => {
-      if (point.points[0] !== (0, 0) && point.speed !== 0) {
-        const c3 = point.done ? "green" : id == 3 ? "blue" : "cyan";
+    points1.forEach((point, i) => {
+      if (point.points[0][0] !== 0 && point.points[0][1] !== 0) {
+        const c3 = point.is_open_door ? "green" : id == 3 ? "blue" : "cyan";
         ctx.fillStyle = c3;
         const coords = toCanvasCoords(point.points[0][0], point.points[0][1]);
 
@@ -163,11 +223,32 @@ function drawCanvas() {
         ctx.fill();
         ctx.font = "bold 14px Arial"; // Fett, 14px, Schriftart Arial
         ctx.fillStyle = "black";
-        // ctx.fillText(
-        //   `${point.label} (${point.x.toFixed(1)}, ${point.y.toFixed(1)},${angle.toFixed(2)}, ${length1.toFixed(2)})`,
-        //   coords.x + 40,
-        //   coords.y,
-        // );
+        ctx.fillText(
+          `${i + 1} (${point.points[0][0].toFixed(1)}, ${point.points[0][1].toFixed(1)}, ${point.speeds[0].toFixed(1)}, ${point.distances[0].toFixed(1)})`,
+          coords.x + 20,
+          coords.y,
+        );
+
+        for (let i = 0; i < 5; i++) {
+          ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+          ctx.strokeStyle = "rgba(255, 0, 0, 0.5)"; // Farbe des Pfeils
+          ctx.lineWidth = 2;
+
+          // ctx.beginPath();
+          // ctx.moveTo(coords.x, coords.y);
+          // ctx.lineTo(
+          //   coords.x + point.vecs[i][0] * 3,
+          //   coords.y - point.vecs[i][1] * 3,
+          // );
+          // ctx.stroke();
+          zeichneKegelZuPunkt(
+            coords.x,
+            coords.y,
+            coords.x + point.vecs[i][0] * 1000,
+            coords.y - point.vecs[i][1] * 1000,
+            10,
+          );
+        }
 
         // const c1 = "red";
         // drawArrow(

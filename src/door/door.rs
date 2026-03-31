@@ -1,11 +1,12 @@
 const DOOR_COOLDOWN: Duration = Duration::from_secs(5);
 use std::{
+    collections::VecDeque,
     sync::{
-        Arc,
-        atomic::AtomicBool,
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
         mpsc::{Sender, channel},
     },
-    thread::{sleep, spawn},
+    thread::{JoinHandle, sleep, spawn},
     time::Duration,
 };
 
@@ -13,16 +14,17 @@ use rppal::gpio::{Gpio, InputPin};
 
 use crate::door::stepper::Stepper;
 
-#[derive(Debug)]
-enum State {
+#[derive(Debug, Clone, PartialEq)]
+pub enum State {
     Opened,
     Closed,
     Opening,
     Closing,
     Holding,
     Locked,
+    Undefined,
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Event {
     Open,
     Close,
@@ -34,86 +36,117 @@ pub enum Event {
     Unlock,
 }
 pub struct Door {
-    state: State,
+    state: Arc<Mutex<State>>,
     stepper: Stepper,
     stepper_cancler: Arc<AtomicBool>,
     close: InputPin,
     door_dog: Option<Sender<()>>,
 }
 impl Door {
-    pub fn new() -> Self {
+    pub fn new() -> Arc<Mutex<Self>> {
         let lop = Stepper::new(17, 27, 22, 1600).unwrap();
-        let mut t = Door {
-            state: State::Closed,
+        let t = Door {
+            state: Arc::new(Mutex::new(State::Undefined)),
             stepper_cancler: lop.get_cancler_clone(),
             stepper: lop,
             close: Gpio::new().unwrap().get(23).unwrap().into_input_pullup(),
             door_dog: None,
         };
-        t.calibrate();
-        t
+        let dooro = Arc::new(Mutex::new(t));
+        Door::calibrate(dooro.clone());
+        dooro
     }
-    fn calibrate(&mut self) {
+    fn calibrate(door_arc: Arc<Mutex<Door>>) {
         println!("Start door calibration");
+        {
+            let mut door = door_arc.lock().unwrap();
+            let Door {
+                ref mut stepper,
+                ref close,
+                ..
+            } = *door;
 
-        self.stepper.turn_while(|| self.close.is_low(), -1);
-        self.stepper.turn_while(|| self.close.is_high(), 1);
+            stepper.turn_while(|| close.is_low(), -1);
+            stepper.turn_while(|| close.is_high(), 1);
 
-        sleep(Duration::from_millis(500));
-        self.stepper
-            .set_step_count(self.stepper.rot_ref(4697, 1600));
-        self.close_door();
+            sleep(Duration::from_millis(500));
+            let steps = door.stepper.rot_ref(4696, 1600);
+            door.stepper.set_step_count(steps);
+        }
+        Door::close_door(door_arc.clone());
         println!("Finished door calibration");
     }
     pub fn get_cancler(&self) -> Arc<AtomicBool> {
         self.stepper_cancler.clone()
     }
-    pub fn process_event(&mut self, event: Event) {
+    pub fn get_state_arc(&self) -> Arc<Mutex<State>> {
+        self.state.clone()
+    }
+    pub fn process_event(door_arc: Arc<Mutex<Door>>, event: Event) {
         use Event::*;
         use State::*;
-
-        match (&self.state, &event) {
-            (Opened, Close) => self.close_door(),
-            (Opened, Hold) => self.state = Holding,
+        let state_clone = door_arc.lock().unwrap().get_state_arc();
+        let old_state = state_clone.lock().unwrap().clone();
+        match (&old_state, &event) {
+            (Opened, Close) => Door::close_door(door_arc),
+            (Opening, Close) => Door::close_door(door_arc),
+            (Opened, Hold) => *state_clone.lock().unwrap() = Holding,
             (Opened, IsClose) => todo!(),
             (Closed, Open) => {
-                self.send_open_signal();
-                self.open_door();
+                door_arc.lock().unwrap().send_open_signal();
+                Door::open_door(door_arc);
+            }
+            (Closing, Open) => {
+                door_arc.lock().unwrap().send_open_signal();
+                Door::open_door(door_arc);
             }
             (Closed, IsOpen) => todo!(),
             // (Opening, Close) => self.close_door(),
             (Opening, IsOpen) => {
-                self.state = Opened;
-                self.send_open_signal();
+                *state_clone.lock().unwrap() = Opened;
+                door_arc.lock().unwrap().send_open_signal();
             }
             // (Closing, Open) => self.open_door(),
             (Closing, IsOpen) => todo!(),
-            (Closing, IsClose) => self.state = Closed,
-            (Holding, Release) => self.state = Opened,
+            (Closing, IsClose) => *state_clone.lock().unwrap() = Closed,
+            (Holding, Release) => *state_clone.lock().unwrap() = Opened,
             (_, Open) => {
-                self.send_open_signal();
+                door_arc.lock().unwrap().send_open_signal();
             }
-            (Closed, Lock) => self.state = Locked,
-            (Locked, Unlock) => self.state = Closed,
+            (Closed, Lock) => *state_clone.lock().unwrap() = Locked,
+            (Locked, Unlock) => *state_clone.lock().unwrap() = Closed,
             (_, _) => {}
         }
     }
-    fn open_door(&mut self) {
-        self.state = State::Opening;
-        let open = self.stepper.rot_ref(4300, 800);
-        self.stepper.turn_to(open);
+    fn open_door(door_arc: Arc<Mutex<Door>>) {
+        let condi;
+        {
+            let mut door = door_arc.lock().unwrap();
+            let state_clone = door.get_state_arc();
 
-        if self.stepper.get_step_count() == open {
-            self.process_event(Event::IsOpen);
+            *state_clone.lock().unwrap() = State::Opening;
+            let open = door.stepper.rot_ref(4300, 800);
+            door.stepper.turn_to(open);
+            condi = door.stepper.get_step_count() == open;
+        }
+        if condi {
+            Door::process_event(door_arc, Event::IsOpen);
         }
     }
-    fn close_door(&mut self) {
-        self.state = State::Closing;
+    fn close_door(door_arc: Arc<Mutex<Door>>) {
+        let condi;
+        {
+            let mut door = door_arc.lock().unwrap();
+            let state_clone = door.get_state_arc();
 
-        self.stepper.turn_to(0);
+            *state_clone.lock().unwrap() = State::Closing;
 
-        if self.stepper.get_step_count() == 0 {
-            self.process_event(Event::IsClose);
+            door.stepper.turn_to(0);
+
+            condi = door.stepper.get_step_count() == 0;
+        }
+        if condi {
+            Door::process_event(door_arc, Event::IsClose);
         }
     }
     fn send_open_signal(&self) {
@@ -126,12 +159,12 @@ impl Door {
         self.door_dog = Some(dog)
     }
 }
-pub fn start_door_controller(mut door: Door) -> Sender<Event> {
+pub fn start_door_controller(door_arc: Arc<Mutex<Door>>) -> Sender<Event> {
     let (tx, rx) = channel::<Event>();
 
     let (btx, brx) = channel::<()>();
     let tx_clone = tx.clone();
-    door.set_watch_dog(btx);
+    door_arc.lock().unwrap().set_watch_dog(btx);
 
     spawn(move || {
         while brx.recv().is_ok() {
@@ -140,7 +173,6 @@ pub fn start_door_controller(mut door: Door) -> Sender<Event> {
                     Ok(_) => continue,
                     Err(_) => {
                         let _ = tx_clone.send(Event::Close);
-                        // Code ausführen
                         break;
                     }
                 }
@@ -149,9 +181,44 @@ pub fn start_door_controller(mut door: Door) -> Sender<Event> {
     });
 
     spawn(move || {
-        for event in rx {
-            println!("Doorevent: {:?}", &event);
-            door.process_event(event);
+        let mut queue = VecDeque::new();
+        let mut thread: Option<JoinHandle<()>> = None;
+        let state = door_arc.lock().unwrap().get_state_arc();
+        let cancler = door_arc.lock().unwrap().get_cancler();
+        loop {
+            if queue.is_empty() {
+                queue.push_back(rx.recv().unwrap());
+            }
+            while let Ok(event) = rx.try_recv() {
+                queue.push_back(event);
+            }
+            if *state.lock().unwrap() == State::Opening {
+                if queue.contains(&Event::Close) {
+                    cancler.store(true, Ordering::SeqCst);
+                    queue.retain(|x| x != &Event::Open);
+                }
+            }
+            if *state.lock().unwrap() == State::Closing {
+                if queue.contains(&Event::Open) {
+                    cancler.store(true, Ordering::SeqCst);
+                    queue.retain(|x| x != &Event::Close);
+                }
+            }
+
+            if thread.is_none() || thread.as_ref().is_some_and(|x| x.is_finished()) {
+                if let Some(event) = queue.pop_front() {
+                    cancler.store(false, Ordering::SeqCst);
+                    println!(
+                        "Doorevent: {:?} Doorstate {:?}",
+                        &event,
+                        *state.lock().unwrap()
+                    );
+                    let door_arc_clone = door_arc.clone();
+                    thread = Some(spawn(|| {
+                        Door::process_event(door_arc_clone, event);
+                    }));
+                }
+            }
         }
     });
 

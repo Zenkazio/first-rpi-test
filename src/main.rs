@@ -37,8 +37,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     for uart in [3, 5] {
         let tx_clone = tx_door.clone();
         let ws_tx_clone = ws_tx.clone();
-        Detector::start(uart, move |mut arr: [Target; 3]| {
-            for t in &mut arr {
+        Detector::start(uart, move |arr: [Target; 3]| {
+            for t in &arr {
                 if t.is_alive() {
                     if t.is_door_open() {
                         let _ = tx_clone.send(door::door::Event::Open);
