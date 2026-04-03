@@ -70,7 +70,8 @@ impl Door {
             stepper.turn_while(|| close.is_high(), 1);
 
             sleep(Duration::from_millis(500));
-            let steps = door.stepper.rot_ref(4696, 1600);
+            // dbg!(door.stepper.get_step_count());
+            let steps = door.stepper.rot_ref(5110, 1600);
             door.stepper.set_step_count(steps);
         }
         Door::close_door(door_arc.clone());
@@ -90,6 +91,7 @@ impl Door {
         match (&old_state, &event) {
             (Opened, Close) => Door::close_door(door_arc),
             (Opening, Close) => Door::close_door(door_arc),
+            (Closing, Close) => Door::close_door(door_arc),
             (Opened, Hold) => *state_clone.lock().unwrap() = Holding,
             (Opened, IsClose) => todo!(),
             (Closed, Open) => {
@@ -97,6 +99,10 @@ impl Door {
                 Door::open_door(door_arc);
             }
             (Closing, Open) => {
+                door_arc.lock().unwrap().send_open_signal();
+                Door::open_door(door_arc);
+            }
+            (Opening, Open) => {
                 door_arc.lock().unwrap().send_open_signal();
                 Door::open_door(door_arc);
             }
@@ -125,7 +131,7 @@ impl Door {
             let state_clone = door.get_state_arc();
 
             *state_clone.lock().unwrap() = State::Opening;
-            let open = door.stepper.rot_ref(4300, 800);
+            let open = door.stepper.rot_ref(3900, 800);
             door.stepper.turn_to(open);
             condi = door.stepper.get_step_count() == open;
         }
