@@ -35,6 +35,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let tx_door = start_door_controller(d);
 
     for uart in [3, 5] {
+        #[allow(unused)]
         let tx_clone = tx_door.clone();
         let ws_tx_clone = ws_tx.clone();
         Detector::start(uart, move |arr: [Target; 3]| {
