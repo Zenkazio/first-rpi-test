@@ -20,7 +20,7 @@ pub enum State {
     Closed,
     Opening,
     Closing,
-    Holding,
+    Held,
     Locked,
     Undefined,
 }
@@ -34,6 +34,7 @@ pub enum Event {
     IsClose,
     Lock,
     Unlock,
+    Calibrate,
 }
 pub struct Door {
     state: Arc<Mutex<State>>,
@@ -83,45 +84,42 @@ impl Door {
     pub fn get_state_arc(&self) -> Arc<Mutex<State>> {
         self.state.clone()
     }
-    pub fn process_event(door_arc: Arc<Mutex<Door>>, event: Event) {
+    fn process_event(door_arc: Arc<Mutex<Door>>, event: Event) {
         use Event::*;
         use State::*;
         let state_clone = door_arc.lock().unwrap().get_state_arc();
-        let old_state = state_clone.lock().unwrap().clone();
-        match (&old_state, &event) {
-            (Opened, Close) => Door::close_door(door_arc),
-            (Opening, Close) => Door::close_door(door_arc),
-            (Closing, Close) => Door::close_door(door_arc),
-            (Opened, Hold) => *state_clone.lock().unwrap() = Holding,
-            (Opened, IsClose) => todo!(),
-            (Closed, Open) => {
-                door_arc.lock().unwrap().send_open_signal();
-                Door::open_door(door_arc);
+        let current_state = state_clone.lock().unwrap().clone();
+        let dl = || door_arc.lock().unwrap();
+        let sl = || state_clone.lock().unwrap();
+
+        match (current_state, event) {
+            (Opened | Opening | Closing, Close) => Door::close_door(door_arc),
+            (Closed | Closing | Opening, Open) => {
+                dl().send_open_signal();
+                Door::open_door(door_arc)
             }
-            (Closing, Open) => {
-                door_arc.lock().unwrap().send_open_signal();
-                Door::open_door(door_arc);
-            }
-            (Opening, Open) => {
-                door_arc.lock().unwrap().send_open_signal();
-                Door::open_door(door_arc);
-            }
-            (Closed, IsOpen) => todo!(),
-            // (Opening, Close) => self.close_door(),
+
+            //End postions reached
             (Opening, IsOpen) => {
-                *state_clone.lock().unwrap() = Opened;
-                door_arc.lock().unwrap().send_open_signal();
+                *sl() = Opened;
+                dl().send_open_signal()
             }
-            // (Closing, Open) => self.open_door(),
-            (Closing, IsOpen) => todo!(),
-            (Closing, IsClose) => *state_clone.lock().unwrap() = Closed,
-            (Holding, Release) => *state_clone.lock().unwrap() = Opened,
-            (_, Open) => {
-                door_arc.lock().unwrap().send_open_signal();
+            (Closing, IsClose) => *sl() = Closed,
+
+            (_, Open) => dl().send_open_signal(),
+
+            (Opened, Hold) => *sl() = Held, // Hold Transitions
+            (Held, Release) => *sl() = Opened,
+
+            (Closed, Lock) => *sl() = Locked, // Lock Transitions
+            (Locked, Unlock) => *sl() = Closed,
+
+            (_, Calibrate) => {
+                *sl() = Undefined;
+                Door::calibrate(door_arc)
             }
-            (Closed, Lock) => *state_clone.lock().unwrap() = Locked,
-            (Locked, Unlock) => *state_clone.lock().unwrap() = Closed,
-            (_, _) => {}
+
+            (_, _) => {} // Total function complete most Events do nothing
         }
     }
     fn open_door(door_arc: Arc<Mutex<Door>>) {
@@ -161,7 +159,7 @@ impl Door {
         }
     }
 
-    pub fn set_watch_dog(&mut self, dog: Sender<()>) {
+    fn set_watch_dog(&mut self, dog: Sender<()>) {
         self.door_dog = Some(dog)
     }
 }
@@ -191,6 +189,7 @@ pub fn start_door_controller(door_arc: Arc<Mutex<Door>>) -> Sender<Event> {
         let mut thread: Option<JoinHandle<()>> = None;
         let state = door_arc.lock().unwrap().get_state_arc();
         let cancler = door_arc.lock().unwrap().get_cancler();
+        let sl = || state.lock().unwrap();
         loop {
             if queue.is_empty() {
                 queue.push_back(rx.recv().unwrap());
@@ -198,13 +197,13 @@ pub fn start_door_controller(door_arc: Arc<Mutex<Door>>) -> Sender<Event> {
             while let Ok(event) = rx.try_recv() {
                 queue.push_back(event);
             }
-            if *state.lock().unwrap() == State::Opening {
+            if *sl() == State::Opening {
                 if queue.contains(&Event::Close) {
                     cancler.store(true, Ordering::SeqCst);
                     queue.retain(|x| x != &Event::Open);
                 }
             }
-            if *state.lock().unwrap() == State::Closing {
+            if *sl() == State::Closing {
                 if queue.contains(&Event::Open) {
                     cancler.store(true, Ordering::SeqCst);
                     queue.retain(|x| x != &Event::Close);
@@ -214,11 +213,7 @@ pub fn start_door_controller(door_arc: Arc<Mutex<Door>>) -> Sender<Event> {
             if thread.is_none() || thread.as_ref().is_some_and(|x| x.is_finished()) {
                 if let Some(event) = queue.pop_front() {
                     cancler.store(false, Ordering::SeqCst);
-                    println!(
-                        "Doorevent: {:?} Doorstate {:?}",
-                        &event,
-                        *state.lock().unwrap()
-                    );
+                    println!("Doorstate: {:?} Doorevent: {:?}", *sl(), &event);
                     let door_arc_clone = door_arc.clone();
                     thread = Some(spawn(|| {
                         Door::process_event(door_arc_clone, event);
