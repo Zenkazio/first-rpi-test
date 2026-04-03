@@ -4,31 +4,27 @@ use axum::{Router, extract::State, routing::get};
 
 use crate::{door, state::AppState};
 
-pub fn door_routes() -> Router<Arc<AppState>> {
-    Router::new()
-        .route("/open", get(open))
-        .route("/close", get(close))
-        .route("/hold", get(hold))
-        .route("/release", get(release))
-        .route("/lock", get(lock))
-        .route("/unlock", get(unlock))
+macro_rules! door_handlers {
+    ($($name:ident => $event:ident),*) => {
+        $(
+            async fn $name(State(state): State<Arc<AppState>>) {
+                state.door.send(door::door::Event::$event).unwrap();
+            }
+        )*
+
+        pub fn door_routes() -> Router<Arc<AppState>> {
+            Router::new()
+                $(.route(concat!("/", stringify!($name)), get($name)))*
+        }
+    };
 }
 
-async fn close(State(state): State<Arc<AppState>>) {
-    state.door.send(door::door::Event::Close).unwrap();
-}
-async fn open(State(state): State<Arc<AppState>>) {
-    state.door.send(door::door::Event::Open).unwrap();
-}
-async fn hold(State(state): State<Arc<AppState>>) {
-    state.door.send(door::door::Event::Hold).unwrap();
-}
-async fn release(State(state): State<Arc<AppState>>) {
-    state.door.send(door::door::Event::Release).unwrap();
-}
-async fn lock(State(state): State<Arc<AppState>>) {
-    state.door.send(door::door::Event::Lock).unwrap();
-}
-async fn unlock(State(state): State<Arc<AppState>>) {
-    state.door.send(door::door::Event::Unlock).unwrap();
+door_handlers! {
+    open    => Open,
+    close   => Close,
+    hold    => Hold,
+    release => Release,
+    lock    => Lock,
+    unlock  => Unlock,
+    calibrate  => Calibrate
 }
