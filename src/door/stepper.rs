@@ -120,54 +120,6 @@ impl Stepper {
         self.tx.send(false).expect("send failed false");
     }
 
-    pub fn turn_to_o(&mut self, to_step: i64) {
-        let start = std::time::Instant::now();
-        self.canceler.store(false, Ordering::SeqCst);
-        let do_steps = to_step - self.step_counter;
-        let do_steps_abs = do_steps.abs();
-        if do_steps == 0 {
-            return;
-        }
-
-        let dir_positive = do_steps > 0;
-        let step_delta: i64 = do_steps.signum();
-
-        if dir_positive {
-            self.dir.set_high();
-        } else {
-            self.dir.set_low();
-        }
-        let sleeper = spin_sleep::SpinSleeper::new(0);
-        self.tx.send(true).expect("send failed true");
-        for i in 0..do_steps_abs {
-            let step = i.min(do_steps_abs - i);
-
-            let freq = if step > self.startup_steps {
-                self.max_freq
-            } else {
-                linear_growth(step, self.start_freq, self.max_freq, self.startup_steps)
-                // logistic_growth(step, self.start_freq, self.max_freq, self.startup_steps)
-            };
-
-            let dur = Duration::from_secs_f32(1.0 / (freq * 2.0));
-
-            self.step.set_high();
-            sleeper.sleep(dur);
-
-            self.step_counter += step_delta;
-
-            self.step.set_low();
-            sleeper.sleep(dur);
-
-            // if self.canceler.load(Ordering::SeqCst) {
-            //     break;
-            // }
-        }
-
-        self.tx.send(false).expect("send failed false");
-        // sleeper.sleep(Duration::from_millis(500));
-        println!("time {}ms", start.elapsed().as_millis());
-    }
     pub fn turn_to(&mut self, step: i64) {
         let start = Instant::now();
         let do_steps = step - self.step_counter;
@@ -231,6 +183,7 @@ impl Stepper {
         let _ = self.tx.send(false);
         self.canceler.store(false, Ordering::SeqCst);
         println!("time {}ms", start.elapsed().as_millis());
+        sleeper.sleep(Duration::from_millis(50));
     }
 
     pub fn reset_step_count(&mut self) {
