@@ -98,37 +98,6 @@ function toCanvasCoords(x, y) {
   };
 }
 
-function drawArrow(ctx, x, y, vx, vy, color, scale = 20) {
-  // Skaliere den Vektor für die Darstellung
-  const length = Math.sqrt(vx * vx + vy * vy);
-  const nx = (vx / length) * scale; // Normierter Vektor (x)
-  const ny = (vy / length) * scale; // Normierter Vektor (y)
-
-  // Linie zeichnen (Pfeilschaft)
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + nx, y - ny); // Minus ny, weil Canvas-Y nach unten zeigt
-  ctx.strokeStyle = color; // Farbe des Pfeils
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // Pfeilspitze zeichnen (Dreieck)
-  const angle = Math.atan2(ny, nx);
-  const arrowSize = 6;
-  ctx.beginPath();
-  ctx.moveTo(x + nx, y - ny);
-  ctx.lineTo(
-    x + nx - arrowSize * Math.cos(angle - Math.PI / 6),
-    y - ny + arrowSize * Math.sin(angle - Math.PI / 6),
-  );
-  ctx.lineTo(
-    x + nx - arrowSize * Math.cos(angle + Math.PI / 6),
-    y - ny + arrowSize * Math.sin(angle + Math.PI / 6),
-  );
-  ctx.closePath();
-  ctx.fillStyle = color;
-  ctx.fill();
-}
 function berechneWinkel(vec1_x, vec1_y, vec2_x, vec2_y) {
   // Skalarprodukt berechnen
   const skalarprodukt = vec1_x * vec2_x + vec1_y * vec2_y;
@@ -234,13 +203,6 @@ function drawCanvas() {
           ctx.strokeStyle = "rgba(255, 0, 0, 0.5)"; // Farbe des Pfeils
           ctx.lineWidth = 2;
 
-          // ctx.beginPath();
-          // ctx.moveTo(coords.x, coords.y);
-          // ctx.lineTo(
-          //   coords.x + point.vecs[i][0] * 3,
-          //   coords.y - point.vecs[i][1] * 3,
-          // );
-          // ctx.stroke();
           zeichneKegelZuPunkt(
             coords.x,
             coords.y,
@@ -249,27 +211,6 @@ function drawCanvas() {
             10,
           );
         }
-
-        // const c1 = "red";
-        // drawArrow(
-        //   ctx,
-        //   originX,
-        //   originY,
-        //   point.points[0][0],
-        //   point.points[0][1],
-        //   (color = c1),
-        //   50,
-        // );
-        // const c2 = "red";
-        // drawArrow(
-        //   ctx,
-        //   coords.x,
-        //   coords.y,
-        //   point.vec_x,
-        //   point.vec_y,
-        //   (color = c2),
-        //   50,
-        // );
       }
     });
   }
