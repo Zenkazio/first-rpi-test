@@ -75,8 +75,8 @@ impl Door {
             let steps = door.stepper.rot_ref(5110, 1600);
             door.stepper.set_step_count(steps);
         }
-        Door::close_door(door_arc.clone());
         println!("Finished door calibration");
+        Door::close_door(door_arc.clone());
     }
     pub fn get_cancler(&self) -> Arc<AtomicBool> {
         self.stepper_cancler.clone()
