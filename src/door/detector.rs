@@ -20,6 +20,9 @@ pub struct Target {
     angles: [f32; SIZE],
     distances: [f32; SIZE],
     speeds: [i16; SIZE],
+    calc_speeds: [f32; SIZE],
+    two_second_points: [(f32, f32); SIZE],
+    timestamps: [u128; 1],
     resolution: u16,
     is_alive: bool,
     is_open_door: bool,
@@ -28,6 +31,7 @@ impl Target {
     pub fn update(&mut self, x: i16, y: i16, speed: i16, resolution: u16) {
         self.speeds.rotate_right(1);
         self.speeds[0] = speed;
+
         self.resolution = resolution;
 
         let (x1, y1) = self.points[0];
@@ -44,15 +48,44 @@ impl Target {
         self.distances.rotate_right(1);
         self.distances[0] = Target::calculate_vector_length(self.points[0]);
 
+        let t1 = self.timestamps[0];
+        self.timestamps.rotate_right(1);
+        self.timestamps[0] = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_millis();
+        let t_diff = self.timestamps[0] - t1;
+        self.calc_speeds.rotate_right(1);
+        self.calc_speeds[0] =
+            Target::calculate_vector_length(self.vecs[0]) / (t_diff as f32 / 1000.0);
+
+        self.two_second_points.rotate_right(1);
+        self.two_second_points[0] = (
+            self.vecs[0].0 as f32 / (t_diff as f32 / 1000.0) * 2.3,
+            self.vecs[0].1 as f32 / (t_diff as f32 / 1000.0) * 2.3,
+        );
+
         self.is_alive = (x, y) != (0, 0);
 
+        // self.is_open_door = self
+        //     .angles
+        //     .iter()
+        //     .take(if self.distances[0] < 1000.0 { 2 } else { 3 })
+        //     .all(|&x| x >= 175.0_f32)
+        //     && self.distances[0] < 2000.0
+        //     && self.speeds[0].abs() > 30
+        //     || self.distances[0] < 500.0;
         self.is_open_door = self
-            .angles
+            .calc_speeds
             .iter()
-            .take(if self.distances[0] < 1000.0 { 2 } else { 3 })
-            .all(|&x| x >= 175.0_f32)
-            && self.distances[0] < 2000.0
-            && self.speeds[0].abs() > 30
+            .take(3)
+            .all(|&x| x * 2.3 > self.distances[0])
+            && self
+                .angles
+                .iter()
+                .take(if self.distances[0] < 1000.0 { 2 } else { 3 })
+                .all(|&x| x >= 172.0_f32)
+            && self.distances.get(4).unwrap_or(&0.0) < &2500.0
             || self.distances[0] < 500.0
     }
     pub fn get_points(&self) -> [(i16, i16); SIZE] {
@@ -136,7 +169,7 @@ impl Detector {
                             targets_array[i].update(x, y, speed, res);
                         }
                     }
-
+                    // dbg!(&targets_array);
                     callback(targets_array.clone());
                 }
             }

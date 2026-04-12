@@ -45,7 +45,7 @@ impl Stepper {
             canceler: Arc::new(AtomicBool::new(false)),
             steps_per_rot: steps_per_rot,
             start_freq: Stepper::rot_ref_base(300, 1600, steps_per_rot as i64) as f32,
-            max_freq: Stepper::rot_ref_base(25000, 1600, steps_per_rot as i64) as f32,
+            max_freq: Stepper::rot_ref_base(35000, 1600, steps_per_rot as i64) as f32,
             startup_steps: Stepper::rot_ref_base(3000, 1600, steps_per_rot as i64),
         };
         Ok(t)

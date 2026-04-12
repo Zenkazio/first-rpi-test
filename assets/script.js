@@ -141,6 +141,7 @@ function zeichneKegelZuPunkt(x1, y1, x2, y2, oeffnungGrad) {
   ctx.fill();
   ctx.stroke();
 }
+
 function drawCanvas() {
   // Canvas leeren
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -192,24 +193,23 @@ function drawCanvas() {
         ctx.fill();
         ctx.font = "bold 14px Arial"; // Fett, 14px, Schriftart Arial
         ctx.fillStyle = "black";
+
         ctx.fillText(
           `${i + 1} (${point.points[0][0].toFixed(1)}, ${point.points[0][1].toFixed(1)}, ${point.speeds[0].toFixed(1)}, ${point.distances[0].toFixed(1)})`,
           coords.x + 20,
           coords.y,
         );
 
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 3; i++) {
           ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
           ctx.strokeStyle = "rgba(255, 0, 0, 0.5)"; // Farbe des Pfeils
           ctx.lineWidth = 2;
 
-          zeichneKegelZuPunkt(
-            coords.x,
-            coords.y,
-            coords.x + point.vecs[i][0] * 1000,
-            coords.y - point.vecs[i][1] * 1000,
-            10,
+          const future = toCanvasCoords(
+            point.points[i][0] + point.two_second_points[i][0],
+            point.points[i][1] + point.two_second_points[i][1],
           );
+          zeichneKegelZuPunkt(coords.x, coords.y, future.x, future.y, 16);
         }
       }
     });
