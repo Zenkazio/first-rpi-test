@@ -183,7 +183,7 @@ function drawCanvas() {
   // Punkte zeichnen
   for (const [id, points1] of Object.entries(points)) {
     points1.forEach((point, i) => {
-      if (point.points[0][0] !== 0 && point.points[0][1] !== 0) {
+      if (point.is_alive) {
         const c3 = point.is_open_door ? "green" : id == 3 ? "blue" : "cyan";
         ctx.fillStyle = c3;
         const coords = toCanvasCoords(point.points[0][0], point.points[0][1]);
@@ -209,7 +209,7 @@ function drawCanvas() {
             point.points[i][0] + point.two_second_points[i][0],
             point.points[i][1] + point.two_second_points[i][1],
           );
-          zeichneKegelZuPunkt(coords.x, coords.y, future.x, future.y, 16);
+          zeichneKegelZuPunkt(coords.x, coords.y, future.x, future.y, 20);
         }
       }
     });

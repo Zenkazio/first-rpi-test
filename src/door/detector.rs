@@ -26,6 +26,8 @@ pub struct Target {
     resolution: u16,
     is_alive: bool,
     is_open_door: bool,
+    is_close_door: bool,
+    opening_angle: f32,
 }
 impl Target {
     pub fn update(&mut self, x: i16, y: i16, speed: i16, resolution: u16) {
@@ -59,13 +61,15 @@ impl Target {
         self.calc_speeds[0] =
             Target::calculate_vector_length(self.vecs[0]) / (t_diff as f32 / 1000.0);
 
+        let fac = 2.5;
+        self.opening_angle = 10.0;
         self.two_second_points.rotate_right(1);
         self.two_second_points[0] = (
-            self.vecs[0].0 as f32 / (t_diff as f32 / 1000.0) * 2.3,
-            self.vecs[0].1 as f32 / (t_diff as f32 / 1000.0) * 2.3,
+            self.vecs[0].0 as f32 / (t_diff as f32 / 1000.0) * fac,
+            self.vecs[0].1 as f32 / (t_diff as f32 / 1000.0) * fac,
         );
 
-        self.is_alive = (x, y) != (0, 0);
+        self.is_alive = (x, y) != (0, 0) && self.speeds[0].abs() > 12;
 
         // self.is_open_door = self
         //     .angles
@@ -79,14 +83,19 @@ impl Target {
             .calc_speeds
             .iter()
             .take(3)
-            .all(|&x| x * 2.3 > self.distances[0])
+            .all(|&x| x * fac > self.distances[0])
             && self
                 .angles
                 .iter()
-                .take(if self.distances[0] < 1000.0 { 2 } else { 3 })
-                .all(|&x| x >= 172.0_f32)
-            && self.distances.get(4).unwrap_or(&0.0) < &2500.0
-            || self.distances[0] < 500.0
+                .take(3)
+                .all(|&x| x >= 180.0 - self.opening_angle)
+            || self.distances[0] < 500.0;
+        self.is_close_door = self
+            .calc_speeds
+            .iter()
+            .take(1)
+            .all(|&x| 1000.0 < self.distances[0] && self.distances[0] < 1500.0)
+            && self.angles.iter().take(1).all(|&x| x <= self.opening_angle)
     }
     pub fn get_points(&self) -> [(i16, i16); SIZE] {
         self.points
@@ -122,6 +131,10 @@ impl Target {
         let angle_degrees = angle_radians * (180.0 / PI);
 
         angle_degrees
+    }
+
+    pub fn is_close_door(&self) -> bool {
+        self.is_close_door
     }
 }
 

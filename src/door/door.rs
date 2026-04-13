@@ -72,7 +72,7 @@ impl Door {
 
             sleep(Duration::from_millis(500));
             // dbg!(door.stepper.get_step_count());
-            let steps = door.stepper.rot_ref(5110, 1600);
+            let steps = door.stepper.rot_ref(5060, 1600);
             door.stepper.set_step_count(steps);
         }
         println!("Finished door calibration");

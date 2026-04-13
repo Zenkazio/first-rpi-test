@@ -43,6 +43,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 if t.is_alive() {
                     if t.is_door_open() {
                         let _ = tx_clone.send(door::door::Event::Open);
+                    } else if t.is_close_door() {
+                        let _ = tx_clone.send(door::door::Event::Close);
                     }
                 }
             }
