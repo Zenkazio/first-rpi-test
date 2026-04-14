@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 
 cargo test --release --target=x86_64-unknown-linux-gnu
