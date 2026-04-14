@@ -5,17 +5,19 @@ mod tasks;
 mod ws;
 
 use axum::{Router, routing::get};
-use rand::Rng;
 
 use std::{
     error::Error,
-    net::SocketAddr,
     sync::{Arc, Mutex},
 };
 use tokio::sync::broadcast;
 
 use crate::{
-    door::statemachine::Door,
+    door::{
+        detector::{Detector, Target},
+        door::{Door, start_door_controller},
+        routes::door_routes,
+    },
     led::stripe::Stripe,
     state::AppState,
     tasks::updater::status_update,
@@ -24,39 +26,55 @@ use crate::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let (tx, _) = broadcast::channel(32);
+    let (ws_tx, _) = broadcast::channel(32);
 
     let led_stripe = Arc::new(Mutex::new(Stripe::new(150)));
     let t_bool = led_stripe.lock().unwrap().get_running_clone();
-    {
-        let mut stripe = led_stripe.lock().unwrap();
-        let f1 = stripe.strength(rand::rng().random(), (255, 0, 0));
-        let f2 = stripe.strength(rand::rng().random(), (0, 255, 0));
-        let f3 = stripe.strength(rand::rng().random(), (0, 0, 255));
-        stripe.activate_frame(&f1.add(&f2).add(&f3));
-    }
 
     let d = Door::new();
+    let tx_door = start_door_controller(d);
+
+    for uart in [3, 5] {
+        #[allow(unused)]
+        let tx_clone = tx_door.clone();
+        let ws_tx_clone = ws_tx.clone();
+        Detector::start(uart, move |arr: [Target; 3]| {
+            for t in &arr {
+                if t.is_alive() {
+                    if t.is_door_open() {
+                        let _ = tx_clone.send(door::door::Event::Open);
+                    } else if t.is_close_door() {
+                        let _ = tx_clone.send(door::door::Event::Close);
+                    }
+                }
+            }
+            let _ = ws_tx_clone.send(ws::messages::ServerMsg::Targets {
+                id: uart,
+                targets: arr,
+            });
+        });
+    }
 
     let state = Arc::new(AppState {
         led_stripe: led_stripe,
         led_repeat: t_bool,
 
-        door_cancler: d.get_cancler(),
-        door: Arc::new(Mutex::new(d)),
+        door: tx_door,
 
-        tx,
+        tx: ws_tx,
     });
 
     tokio::spawn(status_update(state.clone()));
 
     let app = Router::new()
         .route("/ws", get(ws_handler))
+        .nest("/door", door_routes())
         .fallback(get(static_handler))
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 14444));
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:14444")
+        .await
+        .unwrap();
     axum::serve(listener, app).await.unwrap();
 
     Ok(())

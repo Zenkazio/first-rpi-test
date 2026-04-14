@@ -12,11 +12,19 @@
     <body>
         <div class="main-layout">
             <div class="main-container">
-                <button class="save-btn" onclick="sendWs('OpenDoor')">
-                    Öffnen
+                <button
+                    onclick="
+                        fetch('/door/open').then(() => fetch('/door/hold'))
+                    "
+                >
+                    Open and Hold
                 </button>
-                <button class="save-btn" onclick="sendWs('CloseDoor')">
-                    Schließen
+                <button
+                    onclick="
+                        fetch('/door/release').then(() => fetch('/door/close'))
+                    "
+                >
+                    Release and Close
                 </button>
             </div>
 
@@ -132,6 +140,7 @@
         </div>
         <div>Up for:</div>
         <div id="status"></div>
+        <canvas id="myCanvas" width="1000" height="1000"></canvas>
         <script src="script.js"></script>
     </body>
 </html>

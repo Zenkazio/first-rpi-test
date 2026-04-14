@@ -108,6 +108,11 @@ select {
 .red-alert {
     background: linear-gradient(135deg, #aa0000, #bb0000);
 }
+canvas {
+    border: 5px solid darkgrey;
+    background-color: white;
+    margin-bottom: 20px;
+}
 /* Mobile Ansicht */
 @media (max-width: 800px) {
     .main-layout {

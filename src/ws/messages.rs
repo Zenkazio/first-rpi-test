@@ -1,21 +1,18 @@
 use serde::{Deserialize, Serialize};
 
+use crate::{door::detector::Target, led::stripe::PlayerColors};
+
 #[derive(Serialize, Clone)]
 #[serde(tag = "type")]
 pub enum ServerMsg {
     StatusUpdate { value: String },
     PlaySound { name: String },
+    Targets { id: u8, targets: [Target; 3] },
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum ClientMsg {
-    OpenDoor,
-    CloseDoor,
-    StepperReset,
-    StepperStep {
-        step: i64,
-    },
     UpdateSettings {
         r: u8,
         g: u8,
@@ -40,23 +37,4 @@ pub enum WorkMode {
     Blink,
     Dot,
     Custom,
-}
-
-#[derive(Deserialize, Debug, Clone, Copy, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum PlayerColors {
-    White,
-    Green,
-    Blue,
-    Orange,
-}
-impl PlayerColors {
-    pub fn get_color(&self) -> (u8, u8, u8) {
-        match self {
-            PlayerColors::White => (255, 255, 255),
-            PlayerColors::Green => (0, 255, 0),
-            PlayerColors::Blue => (0, 0, 255),
-            PlayerColors::Orange => (255, 30, 0),
-        }
-    }
 }
