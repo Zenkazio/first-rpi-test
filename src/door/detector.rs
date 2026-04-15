@@ -69,7 +69,8 @@ impl Target {
             self.vecs[0].1 as f32 / (t_diff as f32 / 1000.0) * fac,
         );
 
-        self.is_alive = (x, y) != (0, 0) && self.speeds[0].abs() > 12;
+        self.is_alive =
+            (x, y) != (0, 0) && (self.speeds[0].abs() > 12 || self.distances[0] < 650.0);
 
         // self.is_open_door = self
         //     .angles
