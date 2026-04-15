@@ -1,4 +1,4 @@
-const COOLDOWN_TIME: Duration = Duration::from_secs(1);
+const COOLDOWN_TIME: Duration = Duration::from_millis(500);
 
 use std::{
     sync::{
@@ -91,7 +91,7 @@ impl Stepper {
     pub fn rot_ref_base(steps: i64, base: i64, referenz: i64) -> i64 {
         steps * referenz / base
     }
-    pub fn turn_while<F>(&mut self, condition: F, steps: i64)
+    pub fn turn_while<F>(&mut self, condition: F, steps: i64, freq: f32)
     where
         F: Fn() -> bool,
     {
@@ -106,7 +106,7 @@ impl Stepper {
         let sleeper = spin_sleep::SpinSleeper::new(0);
         // let high = Duration::from_secs_f32(1.0 / self.start_freq);
         // let low = Duration::from_secs()
-        let dur = Duration::from_secs_f32(1.0 / (self.start_freq * 2.0));
+        let dur = Duration::from_secs_f32(1.0 / (freq * 2.0));
         self.tx.send(true).expect("send failed true");
         while condition() {
             self.step.set_high();
@@ -118,6 +118,7 @@ impl Stepper {
             sleeper.sleep(dur);
         }
         self.tx.send(false).expect("send failed false");
+        sleeper.sleep(Duration::from_millis(50));
     }
 
     pub fn turn_to(&mut self, step: i64) {

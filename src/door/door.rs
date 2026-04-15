@@ -6,11 +6,11 @@ use std::{
         atomic::{AtomicBool, Ordering},
         mpsc::{Sender, channel},
     },
-    thread::{JoinHandle, sleep, spawn},
+    thread::{JoinHandle, spawn},
     time::Duration,
 };
 
-use rppal::gpio::{Gpio, InputPin};
+use rppal::gpio::Gpio;
 
 use crate::door::stepper::Stepper;
 
@@ -40,7 +40,6 @@ pub struct Door {
     state: Arc<Mutex<State>>,
     stepper: Stepper,
     stepper_cancler: Arc<AtomicBool>,
-    close: InputPin,
     door_dog: Option<Sender<()>>,
 }
 impl Door {
@@ -50,11 +49,9 @@ impl Door {
             state: Arc::new(Mutex::new(State::Undefined)),
             stepper_cancler: lop.get_cancler_clone(),
             stepper: lop,
-            close: Gpio::new().unwrap().get(23).unwrap().into_input_pullup(),
             door_dog: None,
         };
         let dooro = Arc::new(Mutex::new(t));
-        Door::calibrate(dooro.clone());
         dooro
     }
     fn calibrate(door_arc: Arc<Mutex<Door>>) {
@@ -62,18 +59,50 @@ impl Door {
         {
             let mut door = door_arc.lock().unwrap();
             let Door {
-                ref mut stepper,
-                ref close,
-                ..
+                ref mut stepper, ..
             } = *door;
+            let close = Gpio::new().unwrap().get(25).unwrap().into_input_pullup(); //0
+            let middle = Gpio::new().unwrap().get(23).unwrap().into_input_pullup(); //3209
+            let furtherest = Gpio::new().unwrap().get(24).unwrap().into_input_pullup(); //6960
 
-            stepper.turn_while(|| close.is_low(), -1);
-            stepper.turn_while(|| close.is_high(), 1);
+            let first = 169;
+            let second = 3547;
+            let third = 7331;
 
-            sleep(Duration::from_millis(500));
-            // dbg!(door.stepper.get_step_count());
-            let steps = door.stepper.rot_ref(5060, 1600);
-            door.stepper.set_step_count(steps);
+            //place door in closed position before running
+            if false {
+                for _ in 0..1 {
+                    stepper.turn_while(|| close.is_low(), 1, 150.0);
+                    println!("First: {}", stepper.get_step_count());
+                    stepper.turn_while(|| middle.is_high(), 1, 150.0);
+                    stepper.turn_while(|| middle.is_low(), 1, 150.0);
+                    println!("Second: {}", stepper.get_step_count());
+                    stepper.turn_while(|| furtherest.is_high(), 1, 150.0);
+                    stepper.turn_while(|| furtherest.is_low(), 1, 150.0);
+                    println!("Third: {}", stepper.get_step_count());
+                    stepper.turn_to(0);
+                }
+                return;
+            }
+            stepper.turn_while(
+                || close.is_high() && middle.is_high() && furtherest.is_high(),
+                -1,
+                150.0,
+            );
+            if close.is_low() {
+                stepper.turn_while(|| close.is_low(), 1, 150.0);
+                stepper.set_step_count(first);
+            } else if middle.is_low() {
+                stepper.turn_while(|| middle.is_low(), 1, 150.0);
+                stepper.set_step_count(second);
+            } else if furtherest.is_low() {
+                stepper.turn_while(|| furtherest.is_low(), 1, 150.0);
+                stepper.set_step_count(third);
+            }
+            stepper.turn_to(second - 1500);
+            stepper.turn_while(|| middle.is_high(), 1, 150.0);
+            stepper.turn_while(|| middle.is_low(), 1, 150.0);
+            stepper.set_step_count(second);
         }
         println!("Finished door calibration");
         Door::close_door(door_arc.clone());
