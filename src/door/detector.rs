@@ -90,7 +90,7 @@ impl Target {
                 .iter()
                 .take(3)
                 .all(|&x| x >= 180.0 - self.opening_angle)
-            || self.distances[0] < 500.0;
+            || self.distances[0] < 650.0;
         self.is_close_door = self
             .calc_speeds
             .iter()

@@ -44,7 +44,7 @@ pub struct Door {
 }
 impl Door {
     pub fn new() -> Arc<Mutex<Self>> {
-        let lop = Stepper::new(17, 27, 22, 1600).unwrap();
+        let lop = Stepper::new(17, 27, 22, 1600, 8.0).unwrap();
         let t = Door {
             state: Arc::new(Mutex::new(State::Undefined)),
             stepper_cancler: lop.get_cancler_clone(),
@@ -65,13 +65,13 @@ impl Door {
             let middle = Gpio::new().unwrap().get(23).unwrap().into_input_pullup(); //3209
             let furtherest = Gpio::new().unwrap().get(24).unwrap().into_input_pullup(); //6960
 
-            let first = 169;
-            let second = 3547;
-            let third = 7331;
+            let first = 157;
+            let second = 3409;
+            let third = 7722;
 
             //place door in closed position before running
             if false {
-                for _ in 0..1 {
+                for _ in 0..2 {
                     stepper.turn_while(|| close.is_low(), 1, 150.0);
                     println!("First: {}", stepper.get_step_count());
                     stepper.turn_while(|| middle.is_high(), 1, 150.0);
@@ -99,7 +99,7 @@ impl Door {
                 stepper.turn_while(|| furtherest.is_low(), 1, 150.0);
                 stepper.set_step_count(third);
             }
-            stepper.turn_to(second - 1500);
+            stepper.turn_to(second - ((second - first) / 2));
             stepper.turn_while(|| middle.is_high(), 1, 150.0);
             stepper.turn_while(|| middle.is_low(), 1, 150.0);
             stepper.set_step_count(second);
@@ -158,7 +158,7 @@ impl Door {
             let state_clone = door.get_state_arc();
 
             *state_clone.lock().unwrap() = State::Opening;
-            let open = door.stepper.rot_ref(3900, 800);
+            let open = door.stepper.get_steps(40.0);
             door.stepper.turn_to(open);
             condi = door.stepper.get_step_count() == open;
         }

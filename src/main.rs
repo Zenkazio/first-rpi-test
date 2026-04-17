@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let d = Door::new();
     let tx_door = start_door_controller(d);
-    let _ = tx_door.send(door::door::Event::Calibrate);
+    // let _ = tx_door.send(door::door::Event::Calibrate);
 
     for uart in [3, 5] {
         #[allow(unused)]

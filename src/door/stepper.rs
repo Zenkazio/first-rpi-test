@@ -29,13 +29,20 @@ pub struct Stepper {
     step_counter: i64,
     canceler: Arc<AtomicBool>,
     steps_per_rot: u16,
-    start_freq: f32,
+    wheel_size: f32,
+    min_freq: f32,
     max_freq: f32,
     startup_steps: i64,
 }
 
 impl Stepper {
-    pub fn new(ena: u8, dir: u8, step: u8, steps_per_rot: u16) -> Result<Self, Error> {
+    pub fn new(
+        ena: u8,
+        dir: u8,
+        step: u8,
+        steps_per_rot: u16,
+        wheel_size: f32,
+    ) -> Result<Self, Error> {
         let t = Self {
             // ena: a.clone(),
             dir: Gpio::new()?.get(dir)?.into_output_low(),
@@ -44,9 +51,10 @@ impl Stepper {
             step_counter: 0,
             canceler: Arc::new(AtomicBool::new(false)),
             steps_per_rot: steps_per_rot,
-            start_freq: Stepper::rot_ref_base(300, 1600, steps_per_rot as i64) as f32,
-            max_freq: Stepper::rot_ref_base(35000, 1600, steps_per_rot as i64) as f32,
-            startup_steps: Stepper::rot_ref_base(2900, 1600, steps_per_rot as i64),
+            wheel_size: wheel_size,
+            min_freq: 300.0,
+            max_freq: 25000.0,
+            startup_steps: 2900,
         };
         Ok(t)
     }
@@ -85,11 +93,11 @@ impl Stepper {
     pub fn get_step_count(&self) -> i64 {
         self.step_counter
     }
-    pub fn rot_ref(&self, steps: i64, base: i64) -> i64 {
-        Stepper::rot_ref_base(steps, base, self.steps_per_rot as i64)
+    pub fn get_steps(&self, distance_in_cm: f32) -> i64 {
+        (distance_in_cm / self.wheel_size * self.steps_per_rot as f32) as i64
     }
-    pub fn rot_ref_base(steps: i64, base: i64, referenz: i64) -> i64 {
-        steps * referenz / base
+    pub fn get_fmax(&self, distance_in_cm: f32, time: f32) -> f32 {
+        (self.get_steps(distance_in_cm) as f32 / time) * 2.0
     }
     pub fn turn_while<F>(&mut self, condition: F, steps: i64, freq: f32)
     where
@@ -118,7 +126,7 @@ impl Stepper {
             sleeper.sleep(dur);
         }
         self.tx.send(false).expect("send failed false");
-        sleeper.sleep(Duration::from_millis(50));
+        // sleeper.sleep(Duration::from_millis(50));
     }
 
     pub fn turn_to(&mut self, step: i64) {
@@ -147,7 +155,7 @@ impl Stepper {
             let freq = if istep > self.startup_steps {
                 self.max_freq
             } else {
-                linear_growth(istep, self.start_freq, self.max_freq, self.startup_steps)
+                linear_growth(istep, self.min_freq, self.max_freq, self.startup_steps)
                 // logistic_growth(step, self.start_freq, self.max_freq, self.startup_steps)
             };
 
@@ -166,7 +174,7 @@ impl Stepper {
 
         for i in (0..(istep - 1).min(self.startup_steps)).rev() {
             let freq =
-                linear_growth(i, self.start_freq, self.max_freq, self.startup_steps)
+                linear_growth(i, self.min_freq, self.max_freq, self.startup_steps)
                 // logistic_growth(step, self.start_freq, self.max_freq, self.startup_steps)
             ;
 
