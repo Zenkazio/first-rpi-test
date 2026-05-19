@@ -56,6 +56,8 @@ impl Door {
     }
     fn calibrate(door_arc: Arc<Mutex<Door>>) {
         println!("Start door calibration");
+        Door::close_door(door_arc.clone());
+        return;
         {
             let mut door = door_arc.lock().unwrap();
             let Door {
@@ -80,7 +82,7 @@ impl Door {
                     stepper.turn_while(|| furtherest.is_high(), 1, 150.0);
                     stepper.turn_while(|| furtherest.is_low(), 1, 150.0);
                     println!("Third: {}", stepper.get_step_count());
-                    stepper.turn_to(0);
+                    stepper.turn_to_step(0);
                 }
                 return;
             }
@@ -99,7 +101,7 @@ impl Door {
                 stepper.turn_while(|| furtherest.is_low(), 1, 150.0);
                 stepper.set_step_count(third);
             }
-            stepper.turn_to(second - ((second - first) / 2));
+            stepper.turn_to_step(second - ((second - first) / 2));
             stepper.turn_while(|| middle.is_high(), 1, 150.0);
             stepper.turn_while(|| middle.is_low(), 1, 150.0);
             stepper.set_step_count(second);
@@ -158,8 +160,8 @@ impl Door {
             let state_clone = door.get_state_arc();
 
             *state_clone.lock().unwrap() = State::Opening;
-            let open = door.stepper.get_steps(40.0);
-            door.stepper.turn_to(open);
+            let open = door.stepper.cm_to_steps(45.0);
+            door.stepper.turn_to_step(open);
             condi = door.stepper.get_step_count() == open;
         }
         if condi {
@@ -174,7 +176,7 @@ impl Door {
 
             *state_clone.lock().unwrap() = State::Closing;
 
-            door.stepper.turn_to(0);
+            door.stepper.turn_to_step(0);
 
             condi = door.stepper.get_step_count() == 0;
         }

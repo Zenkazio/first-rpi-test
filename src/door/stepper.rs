@@ -29,10 +29,11 @@ pub struct Stepper {
     step_counter: i64,
     canceler: Arc<AtomicBool>,
     steps_per_rot: u16,
-    wheel_size: f32,
+    wheel_size: f32, // circumfrence in centimeter
     min_freq: f32,
     max_freq: f32,
     startup_steps: i64,
+    lookuptable: Vec<(Duration, Duration)>,
 }
 
 impl Stepper {
@@ -53,8 +54,9 @@ impl Stepper {
             steps_per_rot: steps_per_rot,
             wheel_size: wheel_size,
             min_freq: 300.0,
-            max_freq: 25000.0,
-            startup_steps: 2900,
+            max_freq: 20_000.0, //this is the cap of the driver TB6600
+            startup_steps: 4000,
+            lookuptable: Stepper::generate_lookuptable(8000),
         };
         Ok(t)
     }
@@ -93,11 +95,31 @@ impl Stepper {
     pub fn get_step_count(&self) -> i64 {
         self.step_counter
     }
-    pub fn get_steps(&self, distance_in_cm: f32) -> i64 {
-        (distance_in_cm / self.wheel_size * self.steps_per_rot as f32) as i64
+    pub fn cm_to_steps(&self, cm: f32) -> i64 {
+        (cm / self.wheel_size * self.steps_per_rot as f32) as i64
     }
     pub fn get_fmax(&self, distance_in_cm: f32, time: f32) -> f32 {
-        (self.get_steps(distance_in_cm) as f32 / time) * 2.0
+        (self.cm_to_steps(distance_in_cm) as f32 / time) * 2.0
+    }
+    fn frequency_to_highlow(freq: f32) -> (Duration, Duration) {
+        let time = Duration::from_secs_f32(1.0 / freq);
+        let high = time / 4;
+        let low = high * 3;
+        (high, low)
+    }
+    fn step_to_frequency(step: i64) -> f32 {
+        //this expects a two second movement
+        (step * 2) as f32
+    }
+    fn generate_lookuptable(steps: i64) -> Vec<(Duration, Duration)> {
+        let mut vec = Vec::new();
+        //table of max 8000 steps
+        for i in 0..steps {
+            vec.push(Stepper::frequency_to_highlow(
+                Stepper::step_to_frequency(i) + 300.0,
+            ));
+        }
+        vec
     }
     pub fn turn_while<F>(&mut self, condition: F, steps: i64, freq: f32)
     where
@@ -128,8 +150,11 @@ impl Stepper {
         self.tx.send(false).expect("send failed false");
         // sleeper.sleep(Duration::from_millis(50));
     }
+    pub fn turn_to_cm(&mut self, cm: f32) {
+        self.turn_to_step(self.cm_to_steps(cm));
+    }
 
-    pub fn turn_to(&mut self, step: i64) {
+    pub fn turn_to_step(&mut self, step: i64) {
         let start = Instant::now();
         let do_steps = step - self.step_counter;
         if do_steps == 0 {
@@ -145,48 +170,28 @@ impl Stepper {
         }
 
         let sleeper = spin_sleep::SpinSleeper::new(0);
-        let do_steps_abs = do_steps.abs();
+        let do_steps_abs = do_steps.abs() as usize;
+
         let mut c = 0;
-        let mut istep = 0;
+        let mut istep;
         let _ = self.tx.send(true);
-        while self.step_counter != step && !self.canceler.load(Ordering::SeqCst) {
+
+        while self.step_counter != step {
+            let m1 = Instant::now();
             istep = c.min(do_steps_abs - c);
 
-            let freq = if istep > self.startup_steps {
-                self.max_freq
-            } else {
-                linear_growth(istep, self.min_freq, self.max_freq, self.startup_steps)
-                // logistic_growth(step, self.start_freq, self.max_freq, self.startup_steps)
-            };
-
-            let dur = Duration::from_secs_f32(1.0 / (freq * 2.0));
+            let (high, low) = self.lookuptable[istep]; // what if istep bigger than len??
 
             self.step.set_high();
-            sleeper.sleep(dur);
+            sleeper.sleep(high - m1.elapsed());
 
+            let m2 = Instant::now();
             self.step_counter += step_delta;
 
             self.step.set_low();
-            sleeper.sleep(dur);
+            sleeper.sleep(low - m2.elapsed());
 
             c += 1;
-        }
-
-        for i in (0..(istep - 1).min(self.startup_steps)).rev() {
-            let freq =
-                linear_growth(i, self.min_freq, self.max_freq, self.startup_steps)
-                // logistic_growth(step, self.start_freq, self.max_freq, self.startup_steps)
-            ;
-
-            let dur = Duration::from_secs_f32(1.0 / (freq * 2.0));
-
-            self.step.set_high();
-            sleeper.sleep(dur);
-
-            self.step_counter += step_delta;
-
-            self.step.set_low();
-            sleeper.sleep(dur);
         }
 
         let _ = self.tx.send(false);
@@ -195,23 +200,7 @@ impl Stepper {
         sleeper.sleep(Duration::from_millis(50));
     }
 
-    pub fn reset_step_count(&mut self) {
-        self.step_counter = 0;
-    }
     pub fn set_step_count(&mut self, steps: i64) {
         self.step_counter = steps;
     }
-}
-#[inline]
-fn logistic_growth(step: i64, start_freq: f32, max_freq: f32, startup_steps: i64) -> f32 {
-    let k = 0.1; // Wachstumsrate, anpassen für gewünschte Steilheit
-    let x0 = startup_steps as f32 / 2.0; // Wendepunkt in der Mitte der Startup-Phase
-
-    let x = step as f32;
-    start_freq + (max_freq - start_freq) / (1.0 + (-k * (x - x0)).exp())
-}
-#[inline]
-fn linear_growth(step: i64, start_freq: f32, max_freq: f32, startup_steps: i64) -> f32 {
-    let m = (max_freq - start_freq) / startup_steps as f32;
-    step as f32 * m + start_freq
 }

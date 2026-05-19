@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+// #![allow(dead_code)]
 pub mod detector;
 pub mod door;
 pub mod motor;
